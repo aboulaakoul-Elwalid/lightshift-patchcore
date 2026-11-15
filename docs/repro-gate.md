@@ -15,3 +15,8 @@ Receipts: receipts/<cat>-pcore-v1-fs_ad/patchcore/<fp>.json (+ ckpts).
 Note: hazelnut manual probe AUROC (0.883) disagrees with engine metric (1.0) — probe
 scores the un-normalized model output; engine metric is authoritative. To verify later.
 Datasets: /mnt/data-ssd/mvtec_ad_full/{bottle,hazelnut,leather} (CC BY-NC-SA 4.0).
+
+Note: published values above cite PatchCore (Roth et al., CVPR 2022) Table 2, WRN-50
+single-class results (bottle/hazelnut/leather image AUROC 1.000; pixel 0.984/0.997/0.986).
+Double-check the exact per-category digits against the paper table during paper writing
+(HTML rendering only gives the 99.6% mean, so cites are from the widely quoted table).
