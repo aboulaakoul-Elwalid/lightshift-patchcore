@@ -40,7 +40,7 @@ def fingerprint(category: str, cfg: dict) -> str:
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
-def run(category: str, coreset: float, seed: int, device: str = "auto", overwrite: bool = False) -> Path:
+def run(category, coreset, seed, device="auto", overwrite=False, root_key="fs", split_test=False):
     cfg = {
         "backbone": "wide_resnet50_2",
         "layers": ["layer2", "layer3"],
@@ -48,9 +48,10 @@ def run(category: str, coreset: float, seed: int, device: str = "auto", overwrit
         "num_neighbors": 9,
         "image_size": 256,
         "seed": seed,
+        "split_test": split_test,
     }
     fp = fingerprint(category, cfg)
-    bag = f"{category}-pcore-v1"
+    bag = f"{category}-pcore-v1-{root_key}"
     receipt_dir = RECEIPTS / bag / "patchcore"
     receipt = receipt_dir / f"{fp}.json"
     if receipt.exists() and not overwrite:
@@ -58,7 +59,7 @@ def run(category: str, coreset: float, seed: int, device: str = "auto", overwrit
         return receipt
 
     t0 = time.time()
-    base = REPO / "data" / "fs" / category
+    base = REPO / "data" / root_key / category
     dm = Folder(
         name=category,
         root=str(base),
@@ -69,10 +70,7 @@ def run(category: str, coreset: float, seed: int, device: str = "auto", overwrit
         train_batch_size=16,
         eval_batch_size=16,
         num_workers=4,
-        val_split_mode="from_test",
-        val_split_ratio=0.1,
-        test_split_mode="from_dir",
-        test_split_ratio=0.2,
+        val_split_mode="from_test" if split_test else "from_train",
         seed=seed,
     )
     model = Patchcore(
@@ -136,7 +134,7 @@ def run(category: str, coreset: float, seed: int, device: str = "auto", overwrit
         "category": category,
         "config": cfg,
         "git_sha": _git_sha(),
-        "bus": {"device": device, "anomalib": __import__("anomalib").__version__},
+        "bus": {"device": str(device), "anomalib": __import__("anomalib").__version__},
         "elapsed_s": round(time.time() - t0, 1),
         "metrics": metrics,
         "probe": probe if "probe" in dir() else None,
@@ -152,9 +150,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("categories", nargs="+", default=["can"], help="categories")
     ap.add_argument("--coreset", type=float, default=0.25)
+    ap.add_argument("--root", default="fs")
+    ap.add_argument("--split-test", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args()
     for c in args.categories:
-        run(c, args.coreset, args.seed, args.device, args.overwrite)
+        run(c, args.coreset, args.seed, args.device, args.overwrite, args.root, args.split_test)
