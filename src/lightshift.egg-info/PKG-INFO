@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: lightshift
+Version: 0.1.0
+Summary: PatchCore robust to lighting shift: B2 statistics alignment + B3 conformal threshold
+Requires-Python: >=3.11
