@@ -322,6 +322,10 @@ TEMPLATE = """<!doctype html>
     <div class="metric blue"><span class="label">Median defect size (can)</span><span class="value">5.6e-5</span>
       <span class="note">Fraction of the 2232x1024 image; vanishes below feature-stride resolution.</span></div>
   </div>
+  <p>The two other on-disk AD&nbsp;2 categories were fitted overnight (anomalib PatchCore, 256 px, 25% coreset, receipts
+  under <code>receipts/</code>): <code>vial</code> image AUROC 0.861 / pixel 0.830-analog, <code>sheet_metal</code>
+  image AUROC 0.696. Both sit in the "AD&nbsp;2 is simply hard at bottleneck resolution" territory the paper documents
+  (half-resolution recipes and native-resolution handling are the paper's answer, not a fitting bug).</p>
 </section>
 
 <section id="pilot" class="wide">
@@ -391,8 +395,8 @@ attempt POST /api/predict  file=good_bottle.png, category=bottle, family=color_t
   protocol), runs test_private and test_private_mixed inference, and writes float16 256x256 .tiff maps that mirror the
   input filenames — exactly the benchmark's required tree, at model output size so the server zooms them (Tip 1).</p>
   <div class="grid">
-    <div class="metric green"><span class="label">Package status (can, sheet_metal, vial)</span><span class="value">1,478 maps</span>
-      <span class="note">Complete directory tree, float16 tiffs, correct names. Ready for checker script + tarball.</span></div>
+    <div class="metric green"><span class="label">Package status (can, sheet_metal, vial)</span><span class="value">132 MB</span>
+      <span class="note">Complete directory tree, 1,478 float16 tiffs, correct names. Tarball staged: <code>results/mad2_submission/lightshift-patchcore_MAD2_3of8categories.tar.gz</code>. Ready for checker script — do NOT upload incomplete.</span></div>
     <div class="metric rose"><span class="label">Missing categories</span><span class="value">5 of 8</span>
       <span class="note">fabric, fruit_jelly, rice, wallplugs, walnuts are not on disk and the mirror requires login — needs a manual download before a full submission.</span></div>
   </div>
