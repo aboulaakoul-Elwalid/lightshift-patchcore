@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>LightShift-PatchCore demo</title>
+<style>
+:root{--paper:#fbfaf4;--paper2:#f4efe4;--ink:#17140f;--muted:#61584c;--line:#ded2be;
+--accent:#7b5428;--teal:#116a66;--rose:#9d3f29;--green:#dfeee8;--amber:#f3e7cd;--rosebg:#f4dfd6;
+--serif:ui-serif,Georgia,Cambria,"Times New Roman",serif;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(180deg,#fffdf8,#fbfaf4 45%,#f4efe4);color:var(--ink);
+font-family:var(--serif);min-height:100vh}
+.wrap{max-width:980px;margin:0 auto;padding:34px 20px 80px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(26px,4.5vw,38px);margin:.3em 0 .1em;font-weight:600}
+h1 em{font-style:italic}
+.dek{color:var(--muted);max-width:60ch;line-height:1.6}
+.card{background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-top:22px}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:10px 0}
+label{font-family:var(--sans);font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+select,input[type=range]{font-family:var(--sans)}
+select{padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:14px}
+button{font-family:var(--sans);padding:10px 22px;border-radius:12px;border:1px solid var(--accent);
+background:var(--accent);color:#fff;font-size:14px;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}
+.drop{border:1.5px dashed var(--line);border-radius:14px;padding:26px;text-align:center;color:var(--muted);
+font-family:var(--sans);font-size:14px;cursor:pointer;background:#fffdf8}
+.drop.over{border-color:var(--accent);background:var(--amber)}
+.results{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:16px}
+.results figure{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.results img{width:100%;display:block;aspect-ratio:1;object-fit:cover}
+.results figcaption{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+padding:7px 10px;color:var(--muted);border-top:1px solid var(--line)}
+.verdict{font-family:var(--sans);display:flex;gap:10px;align-items:baseline;margin-top:6px;font-size:15px}
+.pill{padding:4px 14px;border-radius:999px;font-weight:700;letter-spacing:.05em;font-size:13px}
+.pill.ok{background:var(--green);color:var(--teal)}
+.pill.bad{background:var(--rosebg);color:var(--rose)}
+.metric{font-family:var(--mono);color:var(--muted);font-size:12.5px}
+.note{margin-top:26px;color:var(--muted);font-size:14.5px;max-width:70ch;line-height:1.65}
+.foot{margin-top:40px;font-family:var(--mono);font-size:11.5px;color:#8d8272;letter-spacing:.08em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">LightShift · PatchCore · MVTec AD</div>
+  <h1>Anomaly detection <em>under lighting shift</em></h1>
+  <p class="dek">Vanilla PatchCore memory bank (WideResNet-50 features), a live lighting-shift
+  generator, and a split-conformal threshold calibrated on clean normals at α&nbsp;=&nbsp;0.1.</p>
+
+  <div class="card">
+    <div class="drop" id="drop">Drop an image here, or click to choose a file</div>
+    <input type="file" id="file" accept="image/*" hidden/>
+    <div class="row">
+      <div>
+        <label for="cat">Category</label><br/>
+        <select id="cat"><option>bottle</option><option>hazelnut</option><option>leather</option></select>
+      </div>
+      <div>
+        <label for="fam">Lighting shift</label><br/>
+        <select id="fam">
+          <option value="none">clean (no shift)</option>
+          <option>gamma</option><option>brightness</option><option>contrast</option>
+          <option>color_temp</option><option>shading</option>
+        </select>
+      </div>
+      <div>
+        <label for="sev">Severity</label><br/>
+        <input id="sev" type="range" min="1" max="5" value="3" disabled/>
+      </div>
+      <button id="go" disabled>Score image</button>
+    </div>
+    <div class="verdict" id="verdict"></div>
+    <div class="metric" id="metrics"></div>
+    <div class="results" id="imgs"></div>
+  </div>
+
+  <p class="note">The threshold comes from the conformal calibration on defect-free images only:
+  k&nbsp;=&nbsp;⌈(n+1)(1−α)⌉-th smallest calibration score. Under a lighting shift the bank matches
+  the reference lighting, so shifted normal parts drift over threshold (false positives) — that is
+  exactly the failure mode the project's B2 feature-stat alignment is designed to repair. Backend:
+  FastAPI, CPU inference, banks exported from the reproduction-gate fits.</p>
+  <div class="foot">LIGHTSHIFTPATCHCORE / DEMO 0.2 · MISTRAL VIBE BUILD</div>
+</div>
+<script>
+const drop=document.getElementById('drop'),file=document.getElementById('file'),
+go=document.getElementById('go'),fam=document.getElementById('fam'),sev=document.getElementById('sev'),
+verdict=document.getElementById('verdict'),metrics=document.getElementById('metrics'),
+imgs=document.getElementById('imgs');
+let f=null;
+drop.onclick=()=>file.click();
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
+drop.ondragleave=()=>drop.classList.remove('over');
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');f=e.dataTransfer.files[0];ready()};
+file.onchange=()=>{f=file.files[0];ready()};
+fam.onchange=()=>sev.disabled=fam.value==='none';
+function ready(){go.disabled=!f;drop.textContent=f?f.name:'Drop an image here, or click to choose a file'}
+go.onclick=async()=>{
+  go.disabled=true;go.textContent='Scoring…';
+  const fd=new FormData();fd.append('file',f);fd.append('category',document.getElementById('cat').value);
+  fd.append('family',fam.value);fd.append('severity',sev.value);
+  try{
+    const r=await fetch('/api/predict',{method:'POST',body:fd});const j=await r.json();
+    if(j.error){verdict.innerHTML='';metrics.textContent=j.error}else{
+      const bad=j.verdict==='anomaly';
+      verdict.innerHTML=`<span class="pill ${bad?'bad':'ok'}">${j.verdict.toUpperCase()}</span>
+        <span class="metric">score / threshold = ${j.score.toFixed(2)} / ${j.threshold.toFixed(2)}
+        (×${j.margin.toFixed(2)})</span>`;
+      metrics.textContent=`category=${document.getElementById('cat').value} shift=${fam.value}${fam.value!=='none'?'·s'+sev.value:''}`;
+      imgs.innerHTML=[['overlay · heatmap on image',j.overlay_png],['input (after shift)',j.shifted_png],['pure anomaly heat',j.heat_png]]
+        .map(([c,d])=>`<figure><img src="${d}"/><figcaption>${c}</figcaption></figure>`).join('');
+    }
+  }catch(e){metrics.textContent='request failed: '+e}
+  go.disabled=false;go.textContent='Score image';
+};
+</script>
+</body>
+</html>
