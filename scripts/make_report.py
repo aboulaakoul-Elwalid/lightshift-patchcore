@@ -120,7 +120,118 @@ def main() -> None:
 def render(pd: dict) -> str:
     return TEMPLATE.replace("<!--CHARTS-->", build_charts(pd)) \
                    .replace("<!--GATE_ROWS-->", gate_rows()) \
-                   .replace("<!--THRS-->", thread_rows(pd))
+                   .replace("<!--THRS-->", thread_rows(pd)) \
+                   .replace("<!--PIPELINE-->", pipeline_svg()) \
+                   .replace("<!--SPLIT-->", split_svg()) \
+                   .replace("<!--CONFORMAL-->", conformal_svg()) \
+                   .replace("<!--SHIFT_RAMP-->", shift_ramp_b64())
+
+
+def pipeline_svg() -> str:
+    boxes = [
+        ("input image", "256 x 256", "#e7edf2"),
+        ("WRN-50 features", "layer2 + layer3", "#e7edf2"),
+        ("memory bank", "normal patches, 25% coreset", "#dfeee8"),
+        ("nearest patch distance", "max over patches = score", "#f3e7cd"),
+        ("conformal threshold B3", "k = ceil((n+1)(1-alpha))", "#f4dfd6"),
+        ("verdict", "score &gt; threshold ?", "#e9e4f2"),
+    ]
+    w, h, bw, bh, gap = 1100, 150, 158, 86, 26
+    parts = [f'<svg viewBox="0 0 {w} {h}" style="width:100%;max-width:1100px">']
+    y = (h - bh) // 2 + 8
+    for i, (t, s, c) in enumerate(boxes):
+        x = 6 + i * (bw + gap)
+        parts.append(f'<rect x="{x}" y="{y}" width="{bw}" height="{bh}" rx="13" fill="{c}" stroke="var(--line)" stroke-width="1"/>')
+        parts.append(f'<text x="{x+bw/2}" y="{y+34}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)" font-family="var(--sans)">{t}</text>')
+        parts.append(f'<text x="{x+bw/2}" y="{y+56}" text-anchor="middle" font-size="10.5" fill="var(--muted)" font-family="var(--sans)">{s}</text>')
+        if i < len(boxes) - 1:
+            ax = x + bw
+            parts.append(f'<path d="M {ax+4} {y+bh/2} L {ax+gap-4} {y+bh/2}" stroke="var(--line-strong)" stroke-width="1.6" marker-end="url(#arr)"/>')
+    parts.append('<defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">'
+                 '<path d="M0,0 L8,4.5 L0,9 z" fill="var(--line-strong)"/></marker></defs>')
+    parts.append(f'<text x="6" y="24" font-size="11" fill="var(--faint)" font-family="var(--sans)">score only ranks anomalies — the decision lives here ↘</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def split_svg() -> str:
+    segs = [("memory bank 70%", "#dfeee8"), ("conformal calibration 15%", "#f3e7cd"),
+            ("shift targets 15%", "#f4dfd6")]
+    w, h = 1100, 74
+    parts = [f'<svg viewBox="0 0 {w} {h}" style="width:100%;max-width:1100px">']
+    x = 0.5
+    for label, c in segs:
+        frac = int(label.split()[-1].rstrip("%")) / 100
+        bw = (w - 1) * frac
+        parts.append(f'<rect x="{x}" y="14" width="{bw}" height="38" fill="{c}" stroke="var(--line)" stroke-width="1"/>')
+        parts.append(f'<text x="{x+bw/2}" y="38" text-anchor="middle" font-size="12.5" fill="var(--muted)" font-family="var(--sans)">{label}</text>')
+        x += bw
+    parts.append(f'<text x="{w/2}" y="66" text-anchor="middle" font-size="10.5" fill="var(--faint)" font-family="var(--sans)">all from train/good, disjoint, seeded (seed = 0); B3 threshold is set from the middle segment only</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def conformal_svg() -> str:
+    """Schematic: calibration scores as a dot strip, conformal threshold, alpha tail."""
+    scores = [0.34, 0.36, 0.37, 0.38, 0.39, 0.40, 0.41, 0.41, 0.42, 0.42,
+              0.43, 0.43, 0.44, 0.44, 0.45, 0.46, 0.47, 0.49, 0.51, 0.54]
+    thr = 0.4538  # bottle B3 threshold (real)
+    w, h = 1100, 150
+    x0, x1, y0 = 60, w - 40, 84
+    sx = lambda v: x0 + (x1 - x0) * (v - 0.30) / (0.60 - 0.30)
+    tx = sx(thr)
+    parts = [f'<svg viewBox="0 0 {w} {h}" style="width:100%;max-width:1100px">']
+    parts.append(f'<rect x="{tx}" y="22" width="{x1-tx+8}" height="52" fill="rgba(157,63,41,0.10)"/>')
+    parts.append(f'<line x1="{x0-14}" y1="74" x2="{x1+14}" y2="74" stroke="var(--line)" stroke-width="1"/>')
+    for i, v in enumerate(scores):
+        cx = sx(v)
+        cy = 40 + 26 * (i % 2)
+        good = v <= thr
+        parts.append(f'<circle cx="{cx:.1f}" cy="{cy}" r="4.6" fill="{"#116a66" if good else "#9d3f29"}" opacity="0.85"/>')
+    parts.append(f'<line x1="{tx}" y1="24" x2="{tx}" y2="92" stroke="#7b5428" stroke-width="2"/>')
+    parts.append(f'<text x="{tx+6:.0f}" y="20" font-size="12" font-weight="700" fill="#7b5428" font-family="var(--sans)">B3 threshold = 0.4538 (bottle, alpha = 0.1)</text>')
+    parts.append(f'<text x="{w/2}" y="120" text-anchor="middle" font-size="11.5" fill="var(--muted)" font-family="var(--sans)">calibration scores (schematic, one dot per clean calibration image): at most alpha = 10% may exceed the threshold — the guarantee</text>')
+    parts.append(f'<text x="{w/2}" y="138" text-anchor="middle" font-size="11.5" fill="var(--muted)" font-family="var(--sans)">breaks exactly when deployment lighting is no longer exchangeable with calibration — see the pilot FPR curves above</text>')
+    parts.append(f'<text x="{x0-20}" y="{40}" font-size="10.5" fill="var(--teal)" font-family="var(--sans)">keep (normal)</text>')
+    parts.append(f'<text x="{tx+8:.0f}" y="66" font-size="10.5" fill="var(--red)" font-family="var(--sans)">false alarms</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def shift_ramp_b64() -> str:
+    """Real montage: one bottle image under 4 families x 5 severities, base64 PNG."""
+    import base64
+    import io
+    import numpy as np
+    from PIL import Image
+    sys.path.insert(0, str(REPO / "src"))
+    from lightshift.shift import SHIFT_FAMILIES, apply_shift  # noqa: E402
+    src = Path("/mnt/data-ssd/mvtec_ad_full/bottle/test/good/010.png")
+    if not src.exists():
+        return ""
+    base = Image.open(src).convert("RGB").resize((128, 128))
+    rows = []
+    fams = [f for f in SHIFT_FAMILIES if f in FAMS]
+    for fam in fams:
+        row = [base]
+        for sev in SEVS:
+            arr = apply_shift(np.asarray(base).astype(np.float32), fam, sev, rng_seed=0)
+            row.append(Image.fromarray(arr.astype(np.uint8)))
+        rows.append([fam, row])
+    label_w, cell = 96, 128
+    ww, hh = label_w + 128 * 6, 26 + 154 * len(rows)
+    canvas = Image.new("RGB", (ww, hh), (251, 250, 244))
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(canvas)
+    d.text((label_w / 2 - 30, 6), "clean | severity 1 -> 5", fill=(97, 88, 76))
+    for i, (fam, row) in enumerate(rows):
+        yy = 26 + 154 * i
+        for j, im in enumerate(row):
+            canvas.paste(im.resize((128, 128)), (label_w + 128 * j, yy))
+        d.text((8, yy + 52), fam + ":", fill=(97, 88, 76))
+    buf = io.BytesIO()
+    canvas.save(buf, format="PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
 def thread_rows(pd: dict) -> str:
@@ -278,6 +389,19 @@ TEMPLATE = """<!doctype html>
   patch features from the training images, and scores a test image by the distance of its patches to the nearest
   neighbour in that memory bank. The score is only useful once a decision threshold exists. The project treats the
   threshold as a first-class citizen:</p>
+  <div class="figure">
+    <h3>How a verdict is made</h3>
+    <!--PIPELINE-->
+    <div class="caption">The whole pipeline is a nearest-neighbour lookup in a memory of normal patches.
+    Everything upstream of the threshold is robust to lighting; everything downstream (the fixed threshold) is
+    what the shift breaks — the pilot measures exactly that.</div>
+  </div>
+  <div class="figure">
+    <h3>The seeded split behind every number</h3>
+    <!--SPLIT-->
+    <div class="caption">Yes — "15% of your normals become conformal calibration data" is a real cost, and section 5 is
+    where it pays off.</div>
+  </div>
   <ul>
     <li><strong>B1 — baseline:</strong> vanilla PatchCore, threshold fixed on clean validation data.</li>
     <li><strong>B2 — feature alignment:</strong> correct the query features using measured statistics of the shifted
@@ -332,7 +456,14 @@ TEMPLATE = """<!doctype html>
   <h2>4. The lighting-shift pilot — the core result</h2>
   <p>Protocol (seeded, per category): train/good split into 70% memory bank / 15% conformal calibration / 15% shift
   targets, disjoint. Four families of controlled lighting shifts — gamma, brightness, color temperature, shading — at
-  five severities, applied to held-out normal AND anomalous test images. Score: max patch NN-distance. Every number
+  five severities, applied to held-out normal AND anomalous test images. What those shifts actually look like at the pixel
+  level, starting from one clean bottle:</p>
+  <div class="figure">
+    <!--SHIFT_RAMP-->
+    <div class="caption">Generated by the repo's own <code>src/lightshift/shift.py</code> from a clean bottle test image
+    (the montage columns are severity 1 to 5 per family). Same generator the webapp exposes live.</div>
+  </div>
+  <p>Score: max patch NN-distance. Every number
   below is the mean over bottle, hazelnut and leather.</p>
   <div class="grid three">
     <div class="metric green"><span class="label">AUROC survives</span><span class="value">&gt;0.96</span>
@@ -360,6 +491,10 @@ TEMPLATE = """<!doctype html>
   was documented as a bug and corrected), P(clean image &gt; threshold) <= alpha holds by construction whenever
   calibration and deployment data are exchangeable — which is exactly the assumption lighting shifts violate, and
   exactly the quantity the pilot charts expose.</p>
+  <div class="figure">
+    <h3>Reading the alpha=0.1 guarantee off the strip</h3>
+    <!--CONFORMAL-->
+  </div>
   <table>
     <thead><tr><th>Category</th><th class="num">B3 threshold</th><th class="num">n calibration good</th>
     <th class="num">n bad</th><th class="num">clean FPR at thr</th><th class="num">clean image AUROC</th></tr></thead>

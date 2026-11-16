@@ -18,6 +18,7 @@ import timm
 import torchvision.transforms as T
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 REPO = Path(__file__).resolve().parents[1]
@@ -28,6 +29,7 @@ BANKS = Path(__file__).resolve().parent / "banks"
 CATEGORIES = ["bottle", "hazelnut", "leather"]
 
 app = FastAPI(title="LightShift-PatchCore demo", version="0.2")
+app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
 _tr = T.Compose([
     T.Resize((256, 256)),
