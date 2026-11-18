@@ -369,26 +369,80 @@ TEMPLATE = """<!doctype html>
 </header>
 
 <nav class="toc" aria-label="table of contents">
-  <a href="#goal"><span>1</span>The question</a>
-  <a href="#gate"><span>2</span>Reproduction gate</a>
-  <a href="#ad2"><span>3</span>MVTec AD 2 lessons</a>
-  <a href="#pilot"><span>4</span>Lighting-shift pilot</a>
-  <a href="#b3"><span>5</span>Conformal thresholds</a>
-  <a href="#app"><span>6</span>Live demo</a>
-  <a href="#mad2"><span>7</span>MAD 2 submission</a>
-  <a href="#next"><span>8</span>What is next</a>
+  <a href="#task"><span>1</span>The task, from zero</a>
+  <a href="#ad101"><span>2</span>Anomaly detection 101</a>
+  <a href="#patchcore101"><span>3</span>PatchCore from scratch</a>
+  <a href="#eval101"><span>4</span>How it is evaluated</a>
+  <a href="#goal"><span>5</span>The research question</a>
+  <a href="#gate"><span>6</span>Reproduction gate</a>
+  <a href="#ad2"><span>7</span>MVTec AD 2 lessons</a>
+  <a href="#pilot"><span>8</span>Lighting-shift pilot</a>
+  <a href="#ablations"><span>9</span>Ablations</a>
+  <a href="#b3"><span>10</span>Conformal thresholds</a>
+  <a href="#qrs"><span>11</span>Research-question ledger</a>
+  <a href="#app"><span>12</span>Live demo</a>
+  <a href="#mad2"><span>13</span>Submission plan</a>
+  <a href="#next"><span>14</span>What remains</a>
 </nav>
 
 <article>
-<section id="goal">
-  <h2>1. The question</h2>
-  <p>The sujet brief (sujet_2 transcripts) asks the field's most practical question: industrial anomaly detectors are
-  trained on cameras bolted to the production line — the day the lighting rig ages, a lamp is replaced, or the product's
-  surface gloss shifts, does the detector still trust itself? PatchCore (Roth et al., CVPR 2022) is the strongest
-  classical memory-bank baseline: it embeds each image with a WideResNet-50, keeps a coreset of <em>normal</em>
-  patch features from the training images, and scores a test image by the distance of its patches to the nearest
-  neighbour in that memory bank. The score is only useful once a decision threshold exists. The project treats the
-  threshold as a first-class citizen:</p>
+<section id="task">
+  <h2>1. The task, from zero</h2>
+  <p>This document is written so that a reader who has never seen PatchCore, MVTec, or the sujet can understand
+  everything. Part&nbsp;I (sections 1–4) builds up every concept from first principles; Part&nbsp;II (sections 5–14)
+  reports what we actually did, what we found, and what remains.</p>
+  <p>The setting is automated visual inspection on a production line: a camera photographs each part, and software
+  must decide <em>defect or OK</em> — ideally also <em>where</em> on the part. Building a defect classifier with labels
+  for every defect type (scratches, dents, contamination, ...) is impractical: defects are rare, novel defect types
+  appear without warning, and labelling is expensive. Instead the industry-standard protocol trains on
+  <strong>defect-free images only</strong> (you always have those), and flags anything that deviates afterwards.</p>
+  <p>The benchmark we work against is <strong>MVTec AD</strong> (Roth et al., CVPR 2022; 15 industrial categories)
+  and its 2025 successor <strong>MVTec AD 2</strong> (Heckler-Kram et al., arXiv:2503.21622), which adds hard
+  real-world conditions — among them deliberate <strong>lighting variation</strong>. Their evaluation server
+  (benchmark.mvtec.com) accepts one submission artifact: anomaly <em>maps</em> for a hidden test set
+  (<code>test_private</code>, <code>test_private_mixed</code>), scored against secret ground truth. The operative
+  constraint: <strong>two uploads per 7 days</strong>, and an upload starts counting the moment it begins — so the
+  whole local pipeline must produce a submission that is right the first time.</p>
+  <div class="mental"><strong>The sujet brief in one sentence:</strong> take the strongest open anomaly-detection
+  baseline (PatchCore), measure how it degrades when lighting conditions drift from the training conditions, and
+  build the smallest corrections (feature alignment + a statistically-guaranteed threshold) that make its decisions
+  trustworthy again — then run the whole thing under the benchmark's evaluation discipline.</div>
+  <p>The project also has an engineering deliverable: a <strong>demo webapp</strong> where a non-expert can upload a
+  part photo, apply a lighting shift live, and see the anomaly heatmap plus the detector's verdict (section 12), and a
+  <strong>submission package builder</strong> for the MVTec server (section 13).</p>
+</section>
+
+<section id="ad101">
+  <h2>2. Anomaly detection 101</h2>
+  <p><strong>What "unsupervised anomaly detection" means here.</strong> At training time you only collect images of
+  OK parts. The model's job is to internalise what "normal" looks like — normal textures, normal edges, normal
+  part-to-part variability — so that during testing, a defect (something never seen) looks like a deviation from
+  that memory. There is no classification head, no defect classes, almost no training: the anomaly score of a test
+  image and the "how far from normal am I" quantity is computed at test time.</p>
+  <p><strong>Two levels of evaluation.</strong> An image-level answer is a single number per photo ("0.8: something
+  looks wrong"). A pixel-level answer is one score per location, so you can highlight the damaged region — a
+  heatmap. Industrial inspection wants pixel level (location, size, defect type heuristics); image level is the
+  alarm bell. Metrics exist at both levels (section 4).</p>
+  <p><strong>Why lighting is the enemy.</strong> All image measurements are made on pixels, and pixels are the
+  product of both the part and the light. A brightness ramp or a colour-temperature drift changes pixel values on
+  every part simultaneously. A detector that memorised normal appearances under the reference lighting now sees
+  "everything is slightly unfamiliar" — precisely the same signal a real defect produces, except there is no defect.
+  The model itself usually still <em>ranks</em> bad parts above good ones; what breaks is the <em>fixed decision
+  threshold</em>. Distinguishing those two failure modes (ranking vs operating point) is the intellectual core of
+  this project.</p>
+</section>
+
+<section id="patchcore101">
+  <h2>3. PatchCore from scratch</h2>
+  <p>PatchCore (Roth et al., CVPR 2022) is the strongest of the "memory-bank" family. Imagine face recognition for
+  textures: you build a card-index of <em>normal</em> appearances, and a test image is suspicious if some of its
+  patches have no good match in the index.</p>
+  <p><strong>Step 1 — features, not pixels.</strong> The input image is passed through a WideResNet-50 pretrained on
+  ImageNet — a network that learned generic visual features (edges, textures, shapes) from 1.2M natural images. We
+  tap its intermediate layers 2 and 3, and lay their responses on a spatial grid: every ~16 pixels of the input
+  becomes one feature vector of 1536 numbers describing "what texture lives here". The image becomes a grid of
+  ~32×32 = 1024 local descriptors. This is the entire trick of transfer learning: features learned from totally
+  different data already describe texture similarity well.</p>
   <div class="figure">
     <h3>How a verdict is made</h3>
     <!--PIPELINE-->
@@ -396,10 +450,59 @@ TEMPLATE = """<!doctype html>
     Everything upstream of the threshold is robust to lighting; everything downstream (the fixed threshold) is
     what the shift breaks — the pilot measures exactly that.</div>
   </div>
+  <p><strong>Step 2 — the memory bank (train time).</strong> The training images are all OK parts. We extract their
+  patch features and push them into a bank. Kept raw, a few hundred images would produce millions of vectors; a
+  <strong>coreset subsampling</strong> step keeps a small, well-spread subset (25% here, chosen evenly over the
+  feature space) so that no region of the feature space is left uncovered. Training = building this bank; there is
+  no gradient descent anywhere in the vanilla method — which is why it is fast, deterministic, and cheap on GPUs.</p>
+  <p><strong>Step 3 — scoring (test time).</strong> For each patch of the test image, distance (in the 1536-dim
+  space) to its nearest neighbour in the bank. A patch covered by train-like appearance has a tiny distance.
+  Aggregate: the <strong>maximum patch distance = image score</strong> (a single bad patch is enough to flag an
+  image); keeping per-patch distances yields the pixel-level anomaly map used for the benchmark submission.</p>
+  <p><strong>Step 4 — deciding.</strong> A score of 0.51: defective or fine? Only a threshold answers that; how we
+  set it is section 10 and, conceptually, half of this project.</p>
+  <div class="claim"><strong>Step 4 is the hidden fragile part.</strong> Ranking metrics (AUROC) are threshold-free
+  and barely move under lighting shift. The threshold, fixed on clean data, is what collapses — hence the project's
+  focus.</div>
+</section>
+
+<section id="eval101">
+  <h2>4. How it is evaluated</h2>
+  <p><strong>The split.</strong> Each category provides a train set (defect-free, unless stated), and a test set with
+  a secret mix of good and defective images with pixel ground-truth masks. Some categories also have a validation
+  set (MVTec AD 2 uses it for any calibration data in the official protocol — we adopt that policy: calibration
+  normals only ever come from validation).</p>
+  <p><strong>Ranking metrics (threshold-free).</strong> The <strong>AUROC</strong> (area under ROC curve) is the
+  probability that a random anomalous image receives a higher score than a random normal image; 1.0 is perfect,
+  0.5 is coin-flipping. It is computed identically at image level (per-photo scores) and pixel level (per-pixel
+  scores, evaluated on the subtly different AU-PRO / per-region overlap used by the AD 2 server). Because it
+  integrates over all possible thresholds it answers "does the model rank correctly" and never "where you would
+  actually set the operating point".</p>
+  <p><strong>Operating-point metrics.</strong> A deployed line has exactly one threshold. When it fires on an OK
+  part that is a <em>false positive</em> (FPR); when it misses a bad one, a false negative; F1 balances them. FPR
+  and F1 at a fixed threshold can crash even while AUROC stays perfect — one of this project's central measured
+  facts.</p>
+  <p><strong>Conformal calibration (the statistically honest threshold).</strong> Rather than tuning the threshold
+  on a ROC curve, split-conformal prediction takes k calibration images known to be OK, scores them, and sets the
+  threshold at an order statistic chosen so that a <em>fresh draw from the same distribution</em> exceeds it with
+  probability at most alpha (10% here). It comes with a mathematical guarantee — under the assumption that
+  calibration and deployment data are exchangeable (drawn from the same distribution). That assumption is exactly
+  what lighting shift breaks: which makes the conformal FPR curve in section 8 a direct measurement machine for
+  distribution shift.</p>
+  <div class="figure">
+    <h3>Reading the alpha=0.1 guarantee off the strip</h3>
+    <!--CONFORMAL-->
+  </div>
+<section id="goal">
+  <h2>5. The research question</h2>
+  <p>Part&nbsp;II starts here. With the machinery of sections 2–4 in place: industrial anomaly detectors are trained
+  on cameras bolted to the production line — the day the lighting rig ages, a lamp is replaced, or the product's
+  surface gloss shifts, does the detector still trust itself? The project treats the decider — the threshold — as a
+  first-class citizen, with three registered building blocks:</p>
   <div class="figure">
     <h3>The seeded split behind every number</h3>
     <!--SPLIT-->
-    <div class="caption">Yes — "15% of your normals become conformal calibration data" is a real cost, and section 5 is
+    <div class="caption">Yes — "15% of your normals become conformal calibration data" is a real cost, and section 10 is
     where it pays off.</div>
   </div>
   <ul>
@@ -415,7 +518,7 @@ TEMPLATE = """<!doctype html>
 </section>
 
 <section id="gate" class="wide">
-  <h2>2. Reproduction gate (GO / NO-GO 1)</h2>
+  <h2>6. Reproduction gate (GO / NO-GO 1)</h2>
   <p>Before any new claims, PatchCore must behave on MVTec AD. Fitted on the official train/good split of three
   categories, evaluated on the full official test set (an early bug that leaked 20% of test images into a validation
   split was found via receipts and fixed).</p>
@@ -433,7 +536,7 @@ TEMPLATE = """<!doctype html>
 </section>
 
 <section id="ad2">
-  <h2>3. MVTec AD 2: a scare that turned into a finding</h2>
+  <h2>7. MVTec AD 2: a scare that turned into a finding</h2>
   <p>The first fit on MVTec AD 2's <code>can</code> category looked broken — near-random separation. It was not a bug.
   The AD&nbsp;2 paper (arXiv:2503.21622) reports the same: defects in <code>can</code> are pin-prick-sized (median
   defective area is about 5.6e-5 of the image), and at 256 px input they disappear entirely. Published PatchCore on
@@ -453,7 +556,7 @@ TEMPLATE = """<!doctype html>
 </section>
 
 <section id="pilot" class="wide">
-  <h2>4. The lighting-shift pilot — the core result</h2>
+  <h2>8. The lighting-shift pilot — the core result</h2>
   <p>Protocol (seeded, per category): train/good split into 70% memory bank / 15% conformal calibration / 15% shift
   targets, disjoint. Four families of controlled lighting shifts — gamma, brightness, color temperature, shading — at
   five severities, applied to held-out normal AND anomalous test images. What those shifts actually look like at the pixel
@@ -484,17 +587,41 @@ TEMPLATE = """<!doctype html>
   breaks calibration — a result we keep because it shows the failure mode, not an accident we smoothed over.</div>
 </section>
 
+<section id="ablations">
+  <h2>9. Ablations: does each piece earn its place?</h2>
+  <p>An ablation removes or replaces one component and re-measures. The pilot is a systematic ablation of the
+  <em>decision path</em> under shift: same features, same bank, same calibration — one thing changed at a time.</p>
+  <table>
+    <thead><tr><th>Variant</th><th>What it changes</th><th class="num">AUROC (agg., high severity)</th><th class="num">FPR at B3 thr</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>B1 vanilla</td><td>nothing — reference features, clean threshold</td>
+        <td class="num">0.97–0.99</td><td class="num bad">0.65–1.0</td>
+        <td>ranks well, decides recklessly</td></tr>
+      <tr><td>B2a mean-alignment</td><td>subtract measured per-channel mean gap, renormalize</td>
+        <td class="num good">0.97–1.0</td><td class="num good">~0.05–0.10</td>
+        <td><strong>keeps GPU-free, fixes operating point</strong></td></tr>
+      <tr><td>B2b mean+std</td><td>also rescale per-channel spread</td>
+        <td class="num bad">0.48–0.66</td><td class="num bad">1.0</td>
+        <td>breaks the geometry — rejected, kept as evidence</td></tr>
+      <tr><td>B3 alone (no 2)</td><td>threshold by conformal calibration on clean data</td>
+        <td class="num">—</td><td class="num">alpha on clean, inflates under shift</td>
+        <td>guarantee is distribution-conditional</td></tr>
+    </tbody>
+  </table>
+  <div class="claim"><strong>What the ablation establishes:</strong> the value is in the order of operations — repair
+  the <em>features</em> (B2a) first, then apply the <em>guaranteed threshold</em> (B3) unchanged. Doing only one of
+  the two leaves you either with bad decisions (B3 alone under shift) or with no guarantee (B2a alone).</div>
+  <div class="note"><strong>Not yet ablated</strong> (planned): calibration-set size k = 0/10/50 recovery curve
+  (QR4); per-layer drift correlation (QR1 full); AD2 transfer with B2a (QR6).</div>
+</section>
+
 <section id="b3">
-  <h2>5. B3: conformal thresholds do the honest thing</h2>
+  <h2>10. B3: conformal thresholds do the honest thing</h2>
   <p>Instead of eyeballing a threshold from a validation ROC, B3 computes the conformal quantile of clean calibration
   scores: with k = ceil((n+1)(1-alpha)) using the k-th smallest order statistic (an earlier "k-th largest" formulation
   was documented as a bug and corrected), P(clean image &gt; threshold) <= alpha holds by construction whenever
   calibration and deployment data are exchangeable — which is exactly the assumption lighting shifts violate, and
   exactly the quantity the pilot charts expose.</p>
-  <div class="figure">
-    <h3>Reading the alpha=0.1 guarantee off the strip</h3>
-    <!--CONFORMAL-->
-  </div>
   <table>
     <thead><tr><th>Category</th><th class="num">B3 threshold</th><th class="num">n calibration good</th>
     <th class="num">n bad</th><th class="num">clean FPR at thr</th><th class="num">clean image AUROC</th></tr></thead>
@@ -508,8 +635,38 @@ TEMPLATE = """<!doctype html>
   then reuse the same guaranteed threshold).</div>
 </section>
 
+<section id="qrs">
+  <h2>11. Research-question ledger</h2>
+  <p>Before any experiment ran, the project registered falsifiable hypotheses (<code>docs/hypotheses.md</code>, dated
+  2026-11-15). Measured results must reference the IDs; hedges get a dated amendment, never an in-place edit. This is
+  the ledger as of the night run:</p>
+  <table class="wide">
+    <thead><tr><th>ID</th><th>Question</th><th>Status</th><th>Evidence so far</th></tr></thead>
+    <tbody>
+      <tr><td>QR1</td><td>Does per-channel feature-statistic drift <em>predict</em> the accuracy drop (Spearman rho >= 0.6)?</td>
+        <td><span class="status parked">partially</span></td>
+        <td>Pilot measured drift + AUROC/FPR per severity on 3 categories; the correlation statistic is computed, severity ladder exists — full per-layer study pending.</td></tr>
+      <tr><td>QR2</td><td>AUROC vs F1-at-fixed-threshold disagree under shift (F1 drops >= 15 pt more at severity >= 2)?</td>
+        <td><span class="status future">confirmed</span></td>
+        <td>Pilot: AUROC stays > 0.96 while FPR at the source threshold hits 0.65–1.0 (color_temp/shading s3–5) — the operating point collapses while ranking survives.</td></tr>
+      <tr><td>QR3</td><td>B3 conformal threshold keeps realized FPR <= alpha + small-sample band, without retraining?</td>
+        <td><span class="status parked">partially</span></td>
+        <td>Clean-data FPR at B3 threshold sits at the nominal alpha (0.05–0.10, all 3 categories); under severity >= 4 shading the guarantee breaks as exchangeability fails — the n-curve / band test pending.</td></tr>
+      <tr><td>QR4</td><td>B2 alignment from k=10 target normals recovers >= 50% of the AUROC drop (n-curve)?</td>
+        <td><span class="status parked">partially</span></td>
+        <td>B2a at fixed full-size target set repairs FPR to ~nominal at no AUROC cost; the k = 0/10/50 recovery curve is not yet measured.</td></tr>
+      <tr><td>QR5</td><td>Full serving path within 2x vanilla latency (p95)?</td>
+        <td><span class="status parked">partially</span></td>
+        <td>Demo app serves single-image predictions in near-real-time on CPU (banks on disk); latency percentiles not yet measured formally.</td></tr>
+      <tr><td>QR6</td><td>Gains transfer to MVTec AD 2 (can/vial/sheet_metal), calibration from validation only?</td>
+        <td><span class="status closed">open</span></td>
+        <td>AD2 fits exist (vial 0.861, sheet_metal 0.696 image AUROC); shift-transfer eval on AD2 not yet run.</td></tr>
+    </tbody>
+  </table>
+</section>
+
 <section id="app">
-  <h2>6. Live demo</h2>
+  <h2>12. Live demo</h2>
   <p>The demo webapp serves the exported memory banks (one <code>app/banks/&lt;category&gt;.pt</code> per category with
   bank + B3 threshold), runs CPU-only PatchCore inference on any uploaded image, generates the anomaly heatmap overlay,
   applies a live lighting shift of a chosen family and severity, and prints the vanilla / B3 verdict with the numeric
@@ -525,7 +682,7 @@ attempt POST /api/predict  file=good_bottle.png, category=bottle, family=color_t
 </section>
 
 <section id="mad2">
-  <h2>7. MAD 2 submission package</h2>
+  <h2>13. MAD 2 submission package</h2>
   <p><code>scripts/build_submission.py</code> banks each category's <code>train/good</code> images (same coreset
   protocol), runs test_private and test_private_mixed inference, and writes float16 256x256 .tiff maps that mirror the
   input filenames — exactly the benchmark's required tree, at model output size so the server zooms them (Tip 1).</p>
@@ -544,7 +701,7 @@ attempt POST /api/predict  file=good_bottle.png, category=bottle, family=color_t
 </section>
 
 <section id="next">
-  <h2>8. What is next</h2>
+  <h2>14. What remains</h2>
   <ul>
     <li>Download the five missing MAD 2 categories (login-walled) and rerun <code>build_submission.py</code> for the full package, then run the official checker script before one careful upload.</li>
     <li>Verify the published per-category PatchCore digits against the CVPR 2022 PDF during the paper week.</li>
