@@ -7,7 +7,25 @@ name = "lightshift"
 version = "0.1.0"
 description = "PatchCore robust to lighting shift: B2 statistics alignment + B3 conformal threshold"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "torch>=2.3",
+  "torchvision>=0.18",
+  "timm>=1.0",
+  "numpy>=1.26",
+  "scikit-learn>=1.4",
+  "pillow>=10.0",
+  "matplotlib>=3.8",
+  "tifffile>=2024.2.12",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+# anomalib is only needed for scripts/fit_baseline.py (reproduction-gate fits);
+# heavy install - keep out of the default set.
+fits = ["anomalib>=2.0", "lightning>=2.2"]
+dev = ["pytest>=8.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

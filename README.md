@@ -7,6 +7,28 @@ Project of the 14-week sujet "LightShift-PatchCore" (smartex-lab).
 Local checkout lives on the machine SSD (`/mnt/data-ssd/lightshift-patchcore`);
 the dataset lives at `/mnt/data-ssd/mvtec-ad-2`.
 
+## Quickstart (any machine)
+
+```bash
+uv sync --extra dev            # or: pip install -e ".[dev]"
+uv run pytest                  # conformal + shift-generator tests
+uv run python scripts/export_banks.py bottle hazelnut leather   # rebuild app banks from MVTec AD train/good
+uv run uvicorn main:app --port 8021 --app-dir app               # demo at http://127.0.0.1:8021
+uv run python scripts/make_report.py                            # regenerate the HTML report
+
+Data: set MVTec AD under /mnt/data-ssd/mvtec_ad_full or edit the
+MVT constant in scripts/pilot_shift_eval.py (also import-data scripts).
+
+Ablation / evaluation entry points:
+- scripts/pilot_shift_eval.py   lighting-shift study (reports results/pilot/)
+- scripts/build_submission.py   MAD 2 submission package (float16 tiffs)
+- scripts/make_report.py        self-contained HTML report
+- scripts/fit_baseline.py       anomalib PatchCore fits (optional extra: uv sync --extra fits)
+
+Banks are .pt files and deliberately not committed; export_banks.py rebuilds
+them in a minute from the MVTec AD train split.
+```
+
 ## Method
 
 Given a vanilla PatchCore fitted on reference lighting:

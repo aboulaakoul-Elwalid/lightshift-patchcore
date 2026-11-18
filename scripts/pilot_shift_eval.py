@@ -46,6 +46,8 @@ TR = T.Compose([
     T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
 ])
 
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 _model = None
 
 
@@ -54,13 +56,13 @@ def backbone():
     if _model is None:
         _model = timm.create_model(
             "wide_resnet50_2", pretrained=True, features_only=True, out_indices=(2, 3)
-        ).cuda().eval()
+        ).to(DEVICE).eval()
     return _model
 
 
 @torch.no_grad()
 def features(img: Image.Image, norm: bool = True) -> torch.Tensor:
-    x = TR(img).unsqueeze(0).cuda()
+    x = TR(img).unsqueeze(0).to(DEVICE)
     f2, f3 = backbone()(x)
     f2 = F.interpolate(f2, scale_factor=0.5, mode="bilinear")
     f = torch.cat([f2.flatten(2), f3.flatten(2)], dim=1).squeeze(0).permute(1, 0)  # (P, C)
@@ -147,7 +149,7 @@ def run_cat(cat: str) -> dict:
         for sev in range(1, 6):
             key = f"{fam}-s{sev}"
             mu_c, mu_s, std_s = b2_stats(tgt_files, fam, sev)
-            delta_mu = (mu_s - mu_c).cuda()
+            delta_mu = (mu_s - mu_c).to(DEVICE)
             deltas_std_c = None  # B2b uses target-shifted std only (no clean std needed)
 
             rows: dict[str, list[float]] = {"vanilla": [], "b2a": [], "b2b": []}
@@ -158,7 +160,7 @@ def run_cat(cat: str) -> dict:
                 f_raw = features(shifted_image(img, fam, sev), norm=False)
                 rows["vanilla"].append(image_score(F.normalize(f_raw, dim=1), bank))
                 rows["b2a"].append(image_score(F.normalize(f_raw - delta_mu, dim=1), bank))
-                scale = torch.clamp(std_s.cuda(), min=1e-3)
+                scale = torch.clamp(std_s.to(DEVICE), min=1e-3)
                 rows["b2b"].append(image_score(F.normalize((f_raw - delta_mu) * scale, dim=1), bank))
                 labels.append(0)
 
@@ -170,7 +172,7 @@ def run_cat(cat: str) -> dict:
                 f_raw = features(shifted_image(img, fam, sev), norm=False)
                 rows["vanilla"].append(image_score(F.normalize(f_raw, dim=1), bank))
                 rows["b2a"].append(image_score(F.normalize(f_raw - delta_mu, dim=1), bank))
-                scale = torch.clamp(std_s.cuda(), min=1e-3)
+                scale = torch.clamp(std_s.to(DEVICE), min=1e-3)
                 rows["b2b"].append(image_score(F.normalize((f_raw - delta_mu) * scale, dim=1), bank))
                 labels.append(1)
 
