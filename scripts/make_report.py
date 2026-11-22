@@ -686,11 +686,13 @@ attempt POST /api/predict  file=good_bottle.png, category=bottle, family=color_t
   <p><code>scripts/build_submission.py</code> banks each category's <code>train/good</code> images (same coreset
   protocol), runs test_private and test_private_mixed inference, and writes float16 256x256 .tiff maps that mirror the
   input filenames — exactly the benchmark's required tree, at model output size so the server zooms them (Tip 1).</p>
+  <p>All eight categories are now on disk (the five late arrivals were extracted and linked under
+  <code>/home/elwalid/datasets/mvtec-ad-2/</code>), and the package below covers the complete benchmark:</p>
   <div class="grid">
-    <div class="metric green"><span class="label">Package status (can, sheet_metal, vial)</span><span class="value">132 MB</span>
-      <span class="note">Complete directory tree, 1,478 float16 tiffs, correct names. Tarball staged: <code>results/mad2_submission/lightshift-patchcore_MAD2_3of8categories.tar.gz</code>. Ready for checker script — do NOT upload incomplete.</span></div>
-    <div class="metric rose"><span class="label">Missing categories</span><span class="value">5 of 8</span>
-      <span class="note">fabric, fruit_jelly, rice, wallplugs, walnuts are not on disk and the mirror requires login — needs a manual download before a full submission.</span></div>
+    <div class="metric green"><span class="label">Package status — verified by the official checker</span><span class="value">8 / 8 pass</span>
+      <span class="note">4,090 float16 tiffs AND 4,090 thresholded PNGs (thresholds: B3 for the pilot categories, mean+3sigma of validation-normal scores per category otherwise — recorded in thresholds_used.json). Official check_and_prepare_data_for_upload.py: "All checks successful", compressed archive ready.</span></div>
+    <div class="metric amber"><span class="label">Remaining before upload</span><span class="value">1 step</span>
+      <span class="note">Upload <code>submission_folder.tar.gz</code> manually on benchmark.mvtec.com (upload starts the evaluation, up to several hours; results under MY SUBMISSIONS). 2 uploads / 7 days — 2 used of 0 spent.</span></div>
   </div>
   <div class="warning"><strong>Do not burn the uploads:</strong> MVTec allows two uploads in 7 days and an upload counts
   the moment it starts. Nothing in this run triggered any upload — the tarball is only staged locally. Also: with only
