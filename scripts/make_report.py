@@ -677,7 +677,7 @@ TEMPLATE = """<!doctype html>
 attempt POST /api/predict  file=good_bottle.png, category=bottle, family=color_temp, severity=5
   score=0.442  threshold=0.454  verdict=normal</code></pre>
   <div class="note"><strong>Where it runs:</strong> deployed behind the tunnel at
-  <a href="http://lightshift.elwalid.dev">lightshift.elwalid.dev</a> (if unreachable tonight, run
+  <a href="http://lightshift.elwalid.dev">lightshift.elwalid.dev</a>; code: <a href="https://github.com/aboulaakoul-Elwalid/lightshift-patchcore">github.com/aboulaakoul-Elwalid/lightshift-patchcore</a> (if unreachable tonight, run
   <code>cd app &amp;&amp; ../.venv/bin/python -m uvicorn main:app --port 8021</code> in the repo).</div>
 </section>
 
@@ -692,7 +692,7 @@ attempt POST /api/predict  file=good_bottle.png, category=bottle, family=color_t
     <div class="metric green"><span class="label">Package status — verified by the official checker</span><span class="value">8 / 8 pass</span>
       <span class="note">4,090 float16 tiffs AND 4,090 thresholded PNGs (thresholds: B3 for the pilot categories, mean+3sigma of validation-normal scores per category otherwise — recorded in thresholds_used.json). Official check_and_prepare_data_for_upload.py: "All checks successful", compressed archive ready.</span></div>
     <div class="metric amber"><span class="label">Remaining before upload</span><span class="value">1 step</span>
-      <span class="note">Upload <code>submission_folder.tar.gz</code> manually on benchmark.mvtec.com (upload starts the evaluation, up to several hours; results under MY SUBMISSIONS). 2 uploads / 7 days — 2 used of 0 spent.</span></div>
+      <span class="note">Upload <code>submission_folder.tar.gz</code> manually on benchmark.mvtec.com (upload starts the evaluation, up to several hours; results under MY SUBMISSIONS). 2 uploads / 7 days — 0 of 2 spent.</span></div>
   </div>
   <div class="warning"><strong>Do not burn the uploads:</strong> MVTec allows two uploads in 7 days and an upload counts
   the moment it starts. Nothing in this run triggered any upload — the tarball is only staged locally. Also: with only
