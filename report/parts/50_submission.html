@@ -1,0 +1,26 @@
+<div class="partlabel" id="partE">Part E · The MVTec AD 2 submission</div>
+<section id="submission">
+<h2>E1. What the benchmark is and what we send</h2>
+<p>MVTec AD 2 keeps the labels of its <b>private</b> test sets secret. You upload anomaly maps; their server computes the scores. Each category has two private sets: <code>test_private</code> (regular lighting) and <code>test_private_mixed</code> (mixed lighting conditions, the one most relevant to this project). The headline metrics are <b>SegF1</b> (F1 of the thresholded segmentation) and <b>AU-PRO<sub>0.05</sub></b>.</p>
+<table><tr><th>item</th><th>what we built</th></tr>
+<tr><td>model</td><td>PatchCore-style, WideResNet-50-2 layers 2+3, 256 px, 25% (strided) coreset bank per category built from <code>train/good</code> (regular lighting). Same pipeline as vanilla in our study. No B2/B3 alignment inside the maps.</td></tr>
+<tr><td><code>anomaly_images/</code></td><td>float16 TIFF maps (256×256) for every private image: 4,090 files across the 8 categories (can 642, fabric 628, fruit_jelly 510, rice 554, sheet_metal 284, vial 552, wallplugs 464, walnuts 456; each = test_private + test_private_mixed).</td></tr>
+<tr><td><code>anomaly_images_thresholded/</code></td><td>binary PNGs, one threshold per category (B3 conformal on validation normals where fitted; mean + 3σ of validation scores elsewhere; recorded in <code>thresholds_used.json</code>). The threshold is part of the SegF1 result.</td></tr>
+<tr><td>verification</td><td>MVTec's official checker (<code>check_and_prepare_data_for_upload.py</code>, from their public utils repository) reported "All checks successful" on the final folder (re-run on 2026-11-23). It checks <b>format and completeness</b>, not accuracy.</td></tr>
+<tr><td>file to upload</td><td><code>results/mad2_submission/lightshift-patchcore_MAD2_full_verified.tar.gz</code> (347 MB). The upload is done by hand on benchmark.mvtec.com.</td></tr></table>
+<h3>What score to expect, honestly</h3>
+<div class="warning">Expect a <b>low</b> score. The AD 2 paper reports PatchCore at roughly 4.7% AU-PRO<sub>0.05</sub> on <b>can</b> and a mean AU-PRO of about 29% across categories at 256 px, and reports that working at higher input resolution helps a lot (tiny defects vanish at 256 px). Our own <code>can</code> image AUROC is about 0.45 (chance). We verified that this is not an implementation bug: a minimal reimplementation outside anomalib gives the same, ImageNet weights load correctly, and the median defect covers only 5.6×10<sup>−5</sup> of the image. The submission is a <b>baseline row</b>; the project's contribution is the lighting-robustness analysis, not the leaderboard rank.</div>
+<h3>Rules that matter</h3>
+<ul>
+<li>2 uploads per 7 days; an upload that fails validation still consumes budget, which is why we run the official checker first.</li>
+<li>Do not publish private-test images or maps in public repositories. Our repo contains code and aggregate numbers only.</li>
+<li>Calibration normals must come from the validation split (policy QR6); we followed it.</li>
+</ul>
+<h3>Form fields we recommend</h3>
+<table><tr><th>field</th><th>value</th><th>why</th></tr>
+<tr><td>Method name</td><td>LightShift-PatchCore</td><td>consistent with the repository</td></tr>
+<tr><td>Runtime (ms)</td><td>≈ 84 on CPU (measured informally); see QR5 for the careful measurement in Part D</td><td>per image, 256 px</td></tr>
+<tr><td>Memory (MB)</td><td>≈ 1,226 peak RSS (bottle bank); AD 2 banks are larger</td><td>state CPU, 256 px</td></tr>
+<tr><td>Project link</td><td>the public GitHub repository</td><td>reviewers can read the code</td></tr>
+<tr><td>Publication fields</td><td>empty</td><td>not published</td></tr></table>
+</section>

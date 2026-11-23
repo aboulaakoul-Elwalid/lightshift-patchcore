@@ -1,0 +1,42 @@
+<section id="patchcore">
+<h2>A4. PatchCore, step by step</h2>
+<p>PatchCore (Roth et al., CVPR 2022) has two phases. <b>Fit</b> (once, per category): fill a memory bank with patch descriptors of good images. <b>Predict</b> (per image): measure how far the image's patches are from the bank.</p>
+{{CHART:pipeline}}
+<h3>Fit</h3>
+<ol>
+<li>For each good training image, extract its 256 descriptors (A3). <b>L2-normalise</b> each one, f ← f / ‖f‖, so every descriptor lies on the unit sphere.</li>
+<li>Stack them: M = all descriptors of all training images (for bottle with 125 images: 32,000 × 1536).</li>
+<li><b>Coreset subsampling</b>: keep 25% of M chosen by a greedy rule (below). The result is the <b>memory bank</b> B (8,000 × 1536).</li>
+</ol>
+<p>There is no loss function and no gradient step. "Training" is copying vectors.</p>
+<h3>Predict</h3>
+<div class="eq">for each patch descriptor q<sub>i</sub> of the test image (i = 1…256), after L2 normalisation:
+    <b>d<sub>i</sub></b> = min over b ∈ B of ‖ q<sub>i</sub> − b ‖²           (distance to nearest normal patch)
+anomaly map = (d<sub>1</sub>, …, d<sub>256</sub>) reshaped to 16×16, upsampled to the image
+<b>image score s</b> = max<sub>i</sub> d<sub>i</sub>                          (the worst patch decides)</div>
+<h3>The cosine identity (why the arithmetic is cheap)</h3>
+<p>For unit vectors a, b: ‖a − b‖² = ‖a‖² + ‖b‖² − 2 a·b = <b>2 − 2 cos θ</b>. So the nearest neighbour is the vector with the <b>largest dot product</b>, and for all 256 patches against the whole bank this is a single matrix product Q Bᵀ (256 × 8000), followed by a row-wise min. This is what runs in the demo in 84 ms on a CPU.</p>
+<div class="worked"><h4>Worked example in 2-D</h4>
+<p>Pretend descriptors are 2-D unit vectors given by an angle. Bank = angles {0°, 90°, 180°}. A test image has three patches at 10°, 80°, 135°.</p>
+<table><tr><th>patch</th><th>nearest bank vector</th><th>Δθ</th><th>d = 2 − 2cos Δθ</th></tr>
+<tr><td>10°</td><td>0°</td><td>10°</td><td>0.030</td></tr><tr><td>80°</td><td>90°</td><td>10°</td><td>0.030</td></tr><tr><td>135°</td><td>90° or 180°</td><td>45°</td><td><b>0.586</b></td></tr></table>
+<p>Anomaly map = (0.030, 0.030, 0.586); image score = max = <b>0.586</b>: the third patch is the "defect": nothing normal points that way. Compare with a threshold τ = 0.25 → anomalous.</p></div>
+<h3>The greedy coreset (k-center) and why it is safe</h3>
+<p>Keeping all 32,000 vectors is wasteful because many are near-duplicates (flat glass). We want a subset C ⊂ M such that <i>every</i> vector of M is close to some element of C. That is the <b>k-center problem</b>: minimise the covering radius r(C) = max<sub>m∈M</sub> min<sub>c∈C</sub> ‖m − c‖.</p>
+<div class="eq"><b>Greedy rule</b>: start with an arbitrary c₁. Repeat: add the point of M that is <i>farthest</i> from the current C.
+    c<sub>j+1</sub> = argmax<sub>m ∈ M</sub> min<sub>c ∈ C</sub> ‖ m − c ‖
+<b>Guarantee</b> (Gonzalez 1985): the covering radius of the greedy set is at most <b>2×</b> that of the best possible set of the same size.</div>
+<div class="worked"><h4>Worked example (1-D, pick 3 of 6 points)</h4>
+<p>M = {0, 1, 2, 10, 11, 12}; start C = {0}. Distances to C: (0,1,2,10,11,12) → farthest is 12, so C = {0, 12}. Distances to C: (0,1,2,2,1,0): a tie between 2 and 10 (both 2); break ties by first index → add 2. C = {0, 2, 12}. Covering radius: distances (0,1,0,2,1,0) → r = 2. The two natural clusters are both represented. A random subset such as {0, 1, 2} would leave 12 at distance 10 away: a normal patch would then be called anomalous. This is why greedy beats random.</p></div>
+<p>In practice, distances in 1536 dimensions are expensive, so the greedy search runs on a <b>random projection</b> to 128 dimensions (Johnson–Lindenstrauss: pairwise distances are preserved up to a small distortion with high probability). Our code (<code>greedy_coreset</code> in <code>patchcore.py</code>) does exactly this. The first pilot used a cheaper strided subsample instead; we replaced it.</p>
+<h3>Why the image score is a max</h3>
+<p>A defect is local: it covers a few patches out of 256. Averaging would dilute it; the max keeps it. The price: the max is also the most sensitive statistic to <i>any</i> patch looking odd, including from a global lighting change. We will see that this is the exact mechanism of the failure.</p>
+<h3>What this model cannot do</h3>
+<ul>
+<li><b>Logical defects</b> (wrong count, wrong position): every patch looks locally normal, so the max patch distance stays low.</li>
+<li><b>Tiny defects at low resolution</b>: at 256 px a pin-prick may be less than one 16×16 cell. (This is the MVTec AD 2 "can" problem, Part D.)</li>
+<li><b>A situation absent from the bank</b>: the bank stores the lighting it saw. New lighting = every patch is "new".</li>
+</ul>
+<div class="exercise"><h4>Exercise A4.1</h4><p>Bank angles {0°, 120°, 240°}; patches at 5°, 100°, 170°, 300°. (a) Distances d<sub>i</sub> = 2−2cos(Δθ). (b) Image score. (c) If we add a bank vector at 180°, which d changes and what is the new score?</p>
+<details><summary>Solution</summary><div>(a) 5°→nearest 0°, Δ=5° → 0.0076; 100°→120°, Δ=20° → 0.1206; 170°→120° (Δ=50°) or 240° (70°): nearest 120°, Δ=50° → 0.7144; 300°→240°, Δ=60° → 1.0. (b) score = 1.0. (c) with 180°: patch 170° now has Δ=10° → 0.0304; patch 300° → nearest 240° (60°) vs 180° (120°): unchanged, 1.0. New score still 1.0 (set by the 300° patch). Lesson: the max is determined by the most isolated patch.</div></details></div>
+</section>

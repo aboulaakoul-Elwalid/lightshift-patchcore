@@ -1,0 +1,40 @@
+<div class="partlabel" id="partF">Part F · Ledger and honesty</div>
+<section id="ledger">
+<h2>F1. Every registered question and idea, with its status</h2>
+<table>
+<tr><th>id</th><th>question / idea</th><th>status</th><th>evidence and caveat</th></tr>
+<tr><td>Gate</td><td>Reproduce vanilla PatchCore on MVTec AD</td><td><span class="pill yes">done</span></td><td>image AUROC 1.000 ×3; pixel within 1 point (D1)</td></tr>
+<tr><td>QR1</td><td>Drift predicts AUROC drop (ρ ≥ 0.6)</td><td><span class="pill part">partial</span></td><td>median ρ = 0.57; much stronger with false-alarm rate (0.76–0.89) (D4)</td></tr>
+<tr><td>QR2</td><td>F1 at fixed τ falls ≥ 15 points more than AUROC</td><td><span class="pill no">falsified</span></td><td>median gap 1.4 points; test sets are defect-heavy (D8)</td></tr>
+<tr><td>QR3</td><td>Conformal τ keeps FPR ≈ α under shift</td><td><span class="pill yes">supported</span></td><td>2 of 3 categories ≤ α; bottle 12–18% (D3)</td></tr>
+<tr><td>QR4</td><td>Alignment from k = 10 recovers ≥ 50% of the k = 50 gain; negative control</td><td><span class="pill part">partial</span></td><td>gain ratio ≈ 1.0; recovery of the AUROC drop is modest (B2a 48%, B2b 84% on 7 of 45 conditions); contamination check run, discolouration control not run (D3, D9)</td></tr>
+<tr><td>QR5</td><td>Serving path ≤ 2× vanilla latency</td><td><span class="pill yes">supported</span></td><td>ratio 0.92–1.00; absolute CPU numbers load-contaminated (D7)</td></tr>
+<tr><td>QR6</td><td>Gains transfer to MVTec AD 2</td><td><span class="pill part">partial</span></td><td>B3 transfers on real lighting; B2 not demonstrated (k ≤ 4) (D5)</td></tr>
+<tr><td>B1</td><td>Augmented bank at equal memory</td><td><span class="pill yes">run</span></td><td>strong for anticipated shifts, none for unseen, no guarantee (D6)</td></tr>
+<tr><td>B2</td><td>Statistics alignment</td><td><span class="pill yes">built, tested</span></td><td>mean and mean+std; first version had two flaws, corrected (C2)</td></tr>
+<tr><td>B3</td><td>Conformal threshold</td><td><span class="pill yes">built, tested</span></td><td>sujet's "k-th largest" corrected to k-th smallest (C1)</td></tr>
+<tr><td>B4</td><td>Second model (EfficientAD / Reverse Distillation)</td><td><span class="pill no">not done</span></td><td>needs training a second model; would show whether the finding is PatchCore-specific</td></tr>
+<tr><td>B5</td><td>Class-agnostic object crop before PatchCore (idea from the study sessions)</td><td><span class="pill no">not done</span></td><td>motivated by pose variation and the AD 2 tiny-defect problem; must use an object/saliency detector, never a defect-aware one (circular)</td></tr>
+<tr><td>Ref.</td><td>Literature reference implementation (SPARC / RDA)</td><td><span class="pill no">not done</span></td><td>no external comparison point</td></tr>
+<tr><td>App</td><td>Demo with live calibration</td><td><span class="pill yes">done</span></td><td>v0.3: vanilla vs B3 vs B2+B3 side by side</td></tr>
+<tr><td>AD 2</td><td>Submission package</td><td><span class="pill yes">verified</span></td><td>official checker passes; <b>upload is a manual step by the owner</b> (E)</td></tr>
+</table>
+<h2>F2. What could make the conclusions wrong (threats to validity)</h2>
+<ul>
+<li><b>Synthetic shifts.</b> Five simple photometric transforms are not a factory lamp. Real exposure shifts clip and move highlights (D5), where B2 did not help.</li>
+<li><b>Three categories, one split seed.</b> Per-category spread is large (bottle behaves differently from hazelnut). More categories and seeds would tighten every number; we report means and a few per-category breakdowns, not confidence intervals.</li>
+<li><b>Small test sets.</b> 20–40 good test images per category; one image = 2.5–5 points of FPR.</li>
+<li><b>Calibration photos are held-out <i>training</i> photos</b>, which may be slightly easier than test photos; this can bias the realised FPR (bottle) and is not exactly the exchangeability the proof needs.</li>
+<li><b>Image level only.</b> We did not evaluate B2/B3 on pixel-level metrics (AU-PRO, SegF1); the AD 2 thresholded masks reuse the image-level threshold as a heuristic.</li>
+<li><b>Own implementation of PatchCore</b> (no 3×3 aggregation, no 9-neighbour re-weighting). The gate used anomalib; the study compares variants inside our pipeline.</li>
+<li><b>B2's defect-erasing risk is only partly tested</b> (contamination check; discolouration control not run).</li>
+<li><b>One α.</b> All experiments use α = 0.1; the miss rate at other α is not charted.</li>
+</ul>
+<h2>F3. What we would do next (ordered)</h2>
+<ol>
+<li>Run the registered discolouration negative control and a B2 test on a dataset with dozens of normals per real lighting condition.</li>
+<li>B5: class-agnostic crop + higher resolution, on AD 2 can and vial (targets the tiny-defect failure, not lighting).</li>
+<li>B4: a second model, to show whether the false-alarm collapse is PatchCore-specific.</li>
+<li>Add confidence intervals (bootstrap over test images and seeds) to QR3/QR4, and a drift-based "recalibrate now" monitor (QR1 supports it).</li>
+</ol>
+</section>

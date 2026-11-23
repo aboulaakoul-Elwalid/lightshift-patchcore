@@ -1,0 +1,11 @@
+<section id="qr2">
+<h2>D8. QR2: does AUROC hide the threshold failure that F1 would show?</h2>
+<p><b>Registered claim.</b> At severity ≥ 2, F1 (image level, at the source threshold) drops by ≥ 15 points <i>more</i> than AUROC on at least one category. <b>Falsified if</b> the median over categories × shifts × severities of (F1 drop − AUROC drop) is &lt; 5 points.</p>
+<p>F1 was computed from the stored FPR and TPR and the known test-set sizes (bottle 20 good / 63 defective, hazelnut 40 / 70, leather 32 / 92) over the 45 shifted conditions of QR4 (vanilla, source threshold).</p>
+<div class="claim"><b>Result.</b> Median (F1 drop − AUROC drop) = <b>1.4 points</b> (bottle 2.3, hazelnut 0.0, leather 1.4): by the registered rule the hypothesis is <b>falsified</b>. The ≥ 15-point effect does occur in 4 of 45 conditions, all on hazelnut (shading 2, 3, 4; brightness 4), with a maximum of 20.6 points. Verdict: <span class="pill no">falsified by its own criterion</span>, with an instructive reason.</div>
+<h3>Why F1 hides the failure here: prevalence</h3>
+<p>The MVTec test sets are <b>defect-heavy</b> (63 of 83 bottle images, 70 of 110 hazelnut images, 92 of 124 leather images are defective). Take the worst case: the shifted threshold flags <i>everything</i> (FPR = 100%, TPR = 100%). With prevalence π of defective parts, precision = π and recall = 1, so</p>
+<div class="eq">F1 = 2π / (1 + π)        hazelnut: π = 70/110 = 0.636  →  F1 = 0.778       bottle: π = 63/83 = 0.759  →  F1 = 0.863</div>
+<p>"Flag everything" still scores F1 ≈ 0.78–0.86, so F1 barely falls even though the system is useless: it rejects every good part. In a real factory defects are rare. At π = 5% the same "flag everything" behaviour gives F1 = 2·0.05/1.05 = <b>0.095</b>. (This last number is arithmetic, not a measurement on our data.)</p>
+<div class="note"><b>Lesson.</b> Choose the metric to match the deployment prevalence. FPR (the false-alarm rate on good parts) does not depend on prevalence, which is why this project reports FPR at the source threshold as the decision-failure metric instead of F1. The registered claim was too tied to the benchmark's defect-heavy test sets.</div>
+</section>

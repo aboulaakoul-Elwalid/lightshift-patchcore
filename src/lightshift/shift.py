@@ -15,7 +15,7 @@ SHIFT_FAMILIES = ("gamma", "brightness", "contrast", "color_temp", "shading")
 
 # Pre-registered parameters (level-indexed from 1). Fixed, do not tune
 # retroactively; new ranges = new registration entry.
-GAMMA_VALUES = {1: 0.85, 2: 0.75, 3: 0.6, 4: 0.45, 5: 0.3}  # <1 darkens
+GAMMA_VALUES = {1: 0.85, 2: 0.75, 3: 0.6, 4: 0.45, 5: 0.3}  # <1 BRIGHTENS (x**g with g<1 lifts midtones)
 BRIGHTNESS_DELS = {1: -12, 2: -22, 3: -35, 4: -48, 5: -62}  # 0-255 units
 CONTRAST_SCALES = {1: 0.85, 2: 0.72, 3: 0.58, 4: 0.45, 5: 0.35}
 COLOR_TEMP_GAINS = {  # (gain_r, gain_b); warm→cool shift, linear in channels
@@ -96,3 +96,10 @@ def apply_shift(img, family: str, severity: int, *, rng_seed: int = 0):
     if family == "shading":
         return apply_shading(img, severity, seed=rng_seed)
     return APPLY[family](img, severity)
+
+
+def shifted_pil(img, family: str, severity: int, *, rng_seed: int = 0):
+    """PIL in -> PIL out (uint8), convenience wrapper around apply_shift."""
+    from PIL import Image
+
+    return Image.fromarray(apply_shift(img, family, severity, rng_seed=rng_seed).astype(np.uint8))

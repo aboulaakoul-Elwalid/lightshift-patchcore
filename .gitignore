@@ -6,4 +6,15 @@ __pycache__/
 *.pth
 mlruns/
 artifacts/
-results/
+# results: keep small experiment outputs and the reports; never the checkpoints or the
+# MVTec AD 2 submission folder (it contains maps for the private test set)
+results/*
+!results/pilot/
+!results/qr1/
+!results/qr4/
+!results/qr5/
+!results/qr6/
+!results/b1/
+!results/contamination/
+!results/report/
+results/report/lightshift-project-report.html

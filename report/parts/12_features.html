@@ -1,0 +1,20 @@
+<section id="features">
+<h2>A3. Deep features: what the numbers are</h2>
+<p>PatchCore does not look at pixels. It looks at <b>feature vectors</b> produced by a convolutional network trained on ImageNet (1.28M natural images, 1000 classes).
+We never train it: its weights are <b>frozen</b>. It is a fixed "lens" that turns local image content into vectors where similar-looking content is close.</p>
+<h3>The network and the tensors (our exact configuration)</h3>
+<table><tr><th>step</th><th>shape</th><th>what it is</th></tr>
+<tr><td>input image, resized</td><td>3 × 256 × 256</td><td>RGB, normalised with the ImageNet mean (0.485, 0.456, 0.406) and std (0.229, 0.224, 0.225)</td></tr>
+<tr><td>WideResNet-50-2, layer 2 output</td><td>512 × 32 × 32</td><td>stride 8: each cell summarises about an 8×8 pixel step; mid-level features (edges, textures)</td></tr>
+<tr><td>layer 3 output</td><td>1024 × 16 × 16</td><td>stride 16: larger receptive field, more object-part content</td></tr>
+<tr><td>layer 2 downsampled ×0.5 (bilinear)</td><td>512 × 16 × 16</td><td>brought to the same 16×16 grid as layer 3</td></tr>
+<tr><td>concatenate along channels</td><td>1536 × 16 × 16</td><td>512 + 1024 = <b>1536</b> channels</td></tr>
+<tr><td>flatten the grid</td><td><b>256 patches × 1536 dims</b></td><td>one 1536-dim vector per grid cell: "patch descriptor"</td></tr></table>
+<div class="note"><b>Deviation from the paper, stated plainly.</b> The original PatchCore also applies a 3×3 average pool around each cell (local neighbourhood aggregation) and an adaptive pooling that projects to 1024 dims. Our own implementation (<code>src/lightshift/patchcore.py</code>) omits both for simplicity and speed; the <b>reproduction gate</b> (Part D) used anomalib's full implementation and matches the published numbers. Our experiments therefore compare variants <i>within</i> our pipeline, which is what an ablation needs.</div>
+<h3>Why two layers?</h3>
+<p>Early layers see fine texture, late layers see object structure. Taking layers 2 and 3 balances locality (to localise a scratch) with context (to know it is a scratch <i>on a bottle</i>). Layer 4 is too coarse (8×8 at this size) and too ImageNet-specific.</p>
+<h3>Why ImageNet features help when lighting is unchanged</h3>
+<p>Two patches of intact bottle glass under the same lamp produce nearly the same descriptor; a crack produces a descriptor unlike any intact patch. Distances in this space are meaningful <i>for the lighting the bank was built under</i>. That qualification is the root of the whole project.</p>
+<div class="worked"><h4>Sizes you can verify</h4>
+<p>bottle: 125 bank images × 256 patches = 32,000 patch vectors; keep 25% → <b>8,000 × 1536</b> floats × 4 bytes = 49 MB, which is exactly the size of <code>app/banks/bottle.pt</code>. WideResNet-50-2 has about 69 M parameters, all frozen, never touched by gradient descent.</p></div>
+</section>

@@ -1,0 +1,15 @@
+<section id="qr1">
+<h2>D4. QR1: does feature drift predict the damage?</h2>
+<p><b>Registered claim.</b> Across lighting shifts, the per-channel feature drift (mean over channels of |μ<sub>target</sub> − μ<sub>ref</sub>| / σ<sub>ref</sub>) correlates with the AUROC drop with Spearman ρ ≥ 0.6 per category; falsified if the median ρ across categories is &lt; 0.35. Spearman ρ is the Pearson correlation of the <i>ranks</i>: +1 means "more drift always means more damage", 0 means no relation.</p>
+<p>Protocol: 3 categories × 25 conditions (5 families × severities 1–5); the drift is computed from the whole target pool under the shift against the bank images; the AUROC drop and the false-alarm rate at the clean threshold are measured on the test set (<code>scripts/qr1_drift.py</code>).</p>
+{{TABLE:qr1}}
+{{CHART:qr1_scatter}}
+<div class="claim"><b>Verdict: partially supported.</b>
+<ul>
+<li><b>Drift vs AUROC drop:</b> ρ = 0.52 (bottle), 0.77 (hazelnut), 0.57 (leather); median <b>0.57</b>. That is above the falsification line (0.35) but below the registered target (0.6) in two of three categories.</li>
+<li><b>Drift vs decision damage is much stronger:</b> ρ with the false-alarm rate at the clean threshold is 0.76–0.89, and ρ with the mean good-image score is 0.87–0.95. Feature drift is a good predictor of how far the good cloud moves, and therefore of the false-alarm rate. That is the quantity B3 repairs.</li>
+<li><b>Why AUROC is predicted less well:</b> AUROC is a ranking statistic and is saturated near 1.0 for most conditions (gamma, contrast, colour_temp barely move it), so many conditions have an AUROC drop of exactly 0 and the rank correlation has little to work with; the per-family correlations marked "nan" are exactly those constant cases. Within the families that do damage ranking the correlation is high (brightness 0.71–0.89, shading up to 0.97 in leather, though with only 5 points each).</li>
+<li>Layer 3 drift predicts AUROC drop slightly better than layer 2 (bottle 0.60 vs 0.39), consistent with coarse object-level features being more sensitive to global lighting; not tested further.</li></ul>
+<b>What it is good for:</b> an operator could monitor this drift number (it needs only unlabeled normal photos) as an alarm: "the lighting has moved, recalibrate". We have not built that, but the data support it.</div>
+<div class="warning">Correlations over 25 correlated conditions (the five severities of a family are not independent) and three categories are indicative, not conclusive. Single-family correlations use n = 5.</div>
+</section>

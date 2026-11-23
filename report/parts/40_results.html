@@ -1,0 +1,41 @@
+<div class="partlabel" id="partD">Part D · Every experiment, with its numbers</div>
+<section id="results">
+<h2>D0. How to read the evidence</h2>
+<div class="note"><b>Common protocol.</b> Per category, the good training images are split with a fixed seed: <b>60% bank</b>, <b>10% source calibration</b> (sets the original threshold), <b>30% target pool</b> (the "operator's photos": k are drawn from here). The test set is the official MVTec AD test set (good + defective). Lighting shifts are applied to <i>everything</i> that is seen under the new lighting (target pool and test images). Scores are raw squared distances. α = 0.1. Results are means over 3 categories × 5 families × severities 2, 3, 4 (45 conditions) and, for the k-sweeps, 10 random draws per k. <b>Test sets are small</b> (20–40 good images per category), so one condition's FPR moves in steps of 2.5–5 points: read means, not single cells.</div>
+<h2>D1. Reproduction gate: is our PatchCore a real PatchCore?</h2>
+<p>Before any robustness claim we checked that vanilla PatchCore (anomalib implementation, WRN-50-2, layers 2+3, coreset 25%, 256 px, seed 0, full official test sets) reproduces published numbers on clean MVTec AD.</p>
+{{TABLE:gate}}
+<p>Image-level AUROC matches exactly; pixel-level is within 1 point (hazelnut 0.4 below). Gate: <span class="pill yes">PASSED</span>. Receipts in <code>receipts/</code>. <span class="tiny">Caveat: the published per-category digits were quoted from the widely used PatchCore table; they should be re-checked against the PDF when writing a paper.</span></p>
+<h2>D2. The pilot: ranking survives, the threshold does not</h2>
+<p>The first study (own pipeline, strided coreset) applied the five shifts at five severities. At severity 5:</p>
+{{TABLE:pilot_s5}}
+<div class="warning"><b>Read with the two caveats of C2:</b> the "B2a" column used the paired-twin oracle, and the first B2b had a bug (hence not shown). Treat the pilot as motivation, and QR4 below as the corrected measurement. The vanilla columns are unaffected: vanilla has no B2.</div>
+<p>Take-aways: (i) at severity 5, vanilla false-alarm rates reach 100% for bottle and hazelnut under brightness and shading, and 75% for leather under shading (leather brightness is milder, 12.5%); (ii) AUROC falls far less (bottle shading 0.948 and hazelnut brightness 0.913 are the worst); (iii) gamma and contrast barely matter at these severities: PatchCore is already fairly invariant to them.</p>
+<h2>D3. QR4 and QR3: how many photos does it take?</h2>
+<p><b>Registered claim (QR4).</b> AdaBN-style alignment from k = 10 target normals recovers ≥ 50% of the AUROC gain obtained with k = 50. <b>Registered claim (QR3).</b> The conformal threshold from n ≥ 20 normals keeps FPR ≤ α + a small-sample band in ≥ 2 of 3 categories, while a naive source threshold does not at severity ≥ 2.</p>
+{{CHART:ncurve}}
+<p class="caption">Mean false-alarm rate of the threshold calibrated on k photos of the new lighting (3 categories × 45 conditions × 10 random draws). The dotted black line is the <i>theoretical</i> E[FPR] = (n+1−k)/(n+1) from Section C1; the three measured curves follow it closely. The sharp rise at k = 5 is predicted by theory (below 9 photos the guarantee is void).</p>
+{{TABLE:qr4_decision}}
+<p>Reading the table:</p>
+<ul>
+<li><b>The source threshold fails badly under shift</b>: FPR = {{V:fpr_src_all}} on average (about 12% on clean data, where the same threshold was calibrated; by severity: 31% at s2, 36% at s3, 52% at s4).</li>
+<li><b>B3 repairs it with ≈ 10 photos</b>: FPR drops to {{V:fpr_b3_k10}} at k = 10, in line with α. This holds with <i>no alignment at all</i>: the threshold does most of the false-alarm repair.</li>
+<li><b>B2 adds detection power at the same false-alarm level.</b> At k = 10, TPR rises from 96% (B3 only) to 99% (B2a) and 99.5% (B2b). AUROC: 0.994 → 0.996 (B2a), 0.994 (B2b at k = 10) and 0.998 (B2b at k ≥ 25).</li>
+<li><b>B2a saturates immediately</b>: its AUROC and TPR are the same at k = 5 and k = 50. The mean offset needs very few photos.</li>
+<li><b>B2b needs more photos</b> (as predicted in C2): its false-alarm rate is high at k = 5 (≈ 38%) and approaches α only from k ≈ 25. It is not neutral on clean data (FPR 20% vs 12%): the std matching adds estimation noise.</li>
+<li><b>Deployable ≈ oracle</b>: "B2a" and "oracle (paired twins)" are indistinguishable (AUROC 0.996 both; TPR 98.8–99.0%). The pilot's optimism turned out to be small.</li>
+</ul>
+{{TABLE:qr4_cat}}
+<h3>Where B2 matters: by shift family (k = 10)</h3>
+<table><tr><th>family</th><th class="num">vanilla AUROC</th><th class="num">B3-only TPR</th><th class="num">B2a+B3 TPR</th><th class="num">B2b+B3 TPR</th></tr>
+<tr><td>brightness</td><td class="num">0.997</td><td class="num">93.7%</td><td class="num">99.7%</td><td class="num">99.9%</td></tr>
+<tr><td>shading</td><td class="num">0.973</td><td class="num">87.2%</td><td class="num">94.7%</td><td class="num">97.8%</td></tr>
+<tr><td>color_temp</td><td class="num">1.000</td><td class="num">99.8%</td><td class="num">99.7%</td><td class="num">99.9%</td></tr>
+<tr><td>contrast, gamma</td><td class="num">1.000</td><td class="num">≈ 100%</td><td class="num">≈ 100%</td><td class="num">≈ 100%</td></tr></table>
+<p class="tiny">From <code>results/qr4/qr4_rows.csv</code>, severities 2–4, k = 10, mean over categories and draws. B2 pays off exactly where the scores themselves are damaged (brightness, shading), and is irrelevant where the model is already invariant.</p>
+<div class="claim"><b>Verdicts.</b>
+<br/><b>QR4</b> <span class="pill part">partially supported</span>: the "k = 10 recovers ≥ 50% of the k = 50 gain" part is true for B2a and B2b (median gain ratio 1.0, at least 0.5 in 100% of the conditions with a measurable gain; saturated already at k = 5 for B2a). The absolute recovery of the <i>AUROC drop</i> is only modest for B2a (≈ 48%) and larger for B2b (≈ 84%) on the 7 of 45 conditions where the shift cost at least 0.01 AUROC: AUROC is simply rarely damaged. The discolouration <b>negative control was not run</b>.
+<br/><b>QR3</b> <span class="pill yes">supported, with one weak category</span>: with k ≥ 10 the realised FPR of the conformal threshold averages 7–11% over all conditions. Per category (k = 25): hazelnut 2%, leather 7%, <b>bottle 12%</b> (k = 50: 18%). So two of three categories are at or below α and bottle is above it. A 99% band should contain 99% of single cells; 76–93% do. Plausible causes, not tested: bottle has only 20 good test images (one image = 5 points), and the calibration photos are held-out <i>train</i> images, which may be slightly easier than test images. The naive source threshold fails at every severity ≥ 2 (FPR 31%, 36%, 52%).</div>
+{{TABLE:qr3}}
+<div class="warning"><b>What this does not show.</b> Synthetic shifts, three categories, one split seed, and test sets of 20–60 images. It shows the mechanism and the sample-size behaviour (which follows theory); it does not show how a particular factory's real lamp behaves. QR6 (real AD 2 lighting) addresses that partially.</div>
+</section>

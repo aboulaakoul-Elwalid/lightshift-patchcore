@@ -1,0 +1,70 @@
+<div class="partlabel" id="partG">Part G · Study aids</div>
+<section id="study">
+<h2>G1. Pen-and-paper problem set</h2>
+<p>Attempt each on paper before opening the solution. A2.1, A4.1, C1.1 and C2.1 above are the first four.</p>
+<div class="exercise"><h4>G1.1 Memory-bank arithmetic</h4><p>A category has 300 good training images at 256×256. Our features have 256 patches × 1536 dims per image, stored as float32. (a) Size of the full patch matrix? (b) Size of a 25% coreset bank? (c) Multiply-adds for scoring one image (256 patches vs the 25% bank)?
+<details><summary>Solution</summary><div>(a) 300 × 256 = 76,800 vectors × 1536 × 4 B = 471.9 MB (≈ 450 MiB). (b) 19,200 vectors × 1536 × 4 B = 118 MB. (c) 256 × 19,200 × 1536 = 7.55 × 10<sup>9</sup> multiply-adds ≈ 7.5 GMAC. With the 8,000-vector bottle bank it is 256 × 8,000 × 1536 = 3.1 GMAC, which is why one image takes milliseconds on a GPU and ≈ 84 ms on a CPU (backbone included).</div></details></p></div>
+<div class="exercise"><h4>G1.2 Why normalisation matters</h4><p>Two descriptors a = (3, 4) and b = (6, 8) point the same way but b is twice as long. (a) ‖a − b‖²? (b) After L2 normalisation? (c) What does this say about brightness changes that rescale features?
+<details><summary>Solution</summary><div>(a) (3²+4²) = 25. (b) both become (0.6, 0.8): distance 0. (c) L2 normalisation removes any pure rescaling of a descriptor (like a global gain), but a per-channel offset or a non-uniform rescaling still rotates the vector. That is why lighting still hurts even with normalisation, and why B2 aligns <i>before</i> normalising.</div></details></p></div>
+<div class="exercise"><h4>G1.3 The spread of the realised FPR</h4><p>n = 10, α = 0.1, k = 10 (the maximum). FPR ~ Beta(a, b) with a = n+1−k = 1, b = k = 10. (a) Mean? (b) Variance = ab / ((a+b)²(a+b+1)) and standard deviation? (c) Is "FPR ≈ 0.2 for this calibration set" surprising?
+<details><summary>Solution</summary><div>(a) a/(a+b) = 1/11 = 0.091. (b) var = 10 / (121 × 12) = 0.00689; sd = 0.083. (c) 0.2 is only about 1.3 standard deviations above the mean: not surprising. A single small calibration set can give an FPR twice the nominal α; the guarantee is about the <i>average</i> over calibration sets. In QR4 the p90 of the realised FPR at k=10 is about 0.30.</div></details></p></div>
+<div class="exercise"><h4>G1.4 Threshold or features?</h4><p>After a lamp change, every good score rises by 0.3, every defect score by 0.1; before: good ∈ [0.2, 0.4], defect ∈ [0.6, 0.9], τ = 0.5. (a) New score ranges? (b) FPR and TPR at τ = 0.5? (c) Which repair (B3 or B2) addresses what?
+<details><summary>Solution</summary><div>(a) good ∈ [0.5, 0.7], defect ∈ [0.7, 1.0]. (b) almost all good parts exceed 0.5 → FPR ≈ 100%; TPR = 100%. (c) The ranking is intact (all defects ≥ all good only at the touching point 0.7; the gap closed from 0.2 to 0.0, which is the "gap narrows" effect). B3 moves τ to ≈ 0.7 (restores FPR; may lose a few defects at the touching point). B2 would try to lower good scores back toward [0.2, 0.4] by realigning features, which also reopens the gap. B3 cannot reopen the gap; only B2 (or a better model) can.</div></details></p></div>
+<h2>G2. Formula sheet</h2>
+<div class="eq">descriptor          f ∈ ℝ<sup>1536</sup>, 256 per image (512 from layer2↓ + 1024 from layer3)
+L2 normalisation    f ← f / ‖f‖                     ⇒  ‖a − b‖² = 2 − 2 a·b
+patch distance      d<sub>i</sub> = min<sub>b∈B</sub> ‖f<sub>i</sub> − b‖²
+image score         s = max<sub>i</sub> d<sub>i</sub>
+greedy coreset      c<sub>j+1</sub> = argmax<sub>m</sub> min<sub>c∈C</sub> ‖m − c‖        (≤ 2× optimal covering radius)
+AUROC               P(s<sub>d</sub> &gt; s<sub>g</sub>) + ½P(s<sub>d</sub> = s<sub>g</sub>)
+FPR / TPR           FP/(FP+TN)  /  TP/(TP+FN)
+conformal           k = ⌈(n+1)(1−α)⌉,  τ = S<sub>(k)</sub> (k-th smallest);  FPR ~ Beta(n+1−k, k),  E = (n+1−k)/(n+1)
+min n for α        n ≥ (1−α)/α   (9 for α=0.1)
+B2a                 f′ = f − (μ<sub>t</sub> − μ<sub>r</sub>)
+B2b                 f′ = (f − μ<sub>t</sub>)/σ<sub>t</sub> · σ<sub>r</sub> + μ<sub>r</sub>
+drift (QR1)         mean over channels of |μ<sub>t,c</sub> − μ<sub>r,c</sub>| / σ<sub>r,c</sub></div>
+<h2>G3. Glossary</h2>
+<table>
+<tr><td><b>anomaly map</b></td><td>per-patch score grid, upsampled to the image</td></tr>
+<tr><td><b>bank / memory bank</b></td><td>the stored normal patch descriptors (after coreset)</td></tr>
+<tr><td><b>coreset</b></td><td>small subset that still covers the whole set (k-center)</td></tr>
+<tr><td><b>calibration set</b></td><td>normal photos used to set the threshold (B3) or estimate target statistics (B2)</td></tr>
+<tr><td><b>exchangeable</b></td><td>order carries no information; the assumption behind conformal guarantees</td></tr>
+<tr><td><b>false alarm / miss</b></td><td>FP (good flagged) / FN (defect not flagged)</td></tr>
+<tr><td><b>shift</b></td><td>change of the imaging conditions between fitting and deployment</td></tr>
+<tr><td><b>oracle</b></td><td>an estimate that uses information unavailable in deployment (here: clean twins of shifted photos)</td></tr>
+<tr><td><b>QR1–QR6</b></td><td>the six registered research questions (hypotheses.md)</td></tr>
+<tr><td><b>B1–B5</b></td><td>repair/baseline ideas: augmentation, alignment, conformal, other model, crop front-end</td></tr>
+</table>
+<h2>G4. Questions a professor may ask</h2>
+<details><summary>Is PatchCore trained? Is it an autoencoder?</summary><div>No to both. A frozen ImageNet network extracts features; "training" only stores a subset of normal patch vectors. An autoencoder learns weights by reconstruction; PatchCore uses nearest-neighbour distance to stored examples.</div></details>
+<details><summary>Why does AUROC stay high but the system fails?</summary><div>AUROC measures ordering only; a systematic shift of all scores preserves much of the order but moves the fixed threshold into the good cloud. Part B, Exercise G1.4.</div></details>
+<details><summary>Prove the conformal guarantee.</summary><div>Exchangeability makes the rank of the new score uniform on 1..n+1, so P(S<sub>n+1</sub> ≤ S<sub>(k)</sub>) = k/(n+1) ≥ 1−α when k = ⌈(n+1)(1−α)⌉. Section C1.</div></details>
+<details><summary>When does the guarantee fail?</summary><div>Lighting changes after calibration (not exchangeable), synthetic calibration photos, n &lt; 9 for α = 0.1, and it never controls misses.</div></details>
+<details><summary>Why did B2b fail in the pilot and work later?</summary><div>The pilot multiplied by σ<sub>t</sub> instead of rescaling by σ<sub>r</sub>/σ<sub>t</sub>. Fixed and unit-tested. Section C2.</div></details>
+<details><summary>Was the first B2 estimate realistic?</summary><div>No: it used clean twins of the shifted photos (an oracle). The deployable estimate matches it closely in QR4 (so the optimism was small), but this had to be measured, not assumed.</div></details>
+<details><summary>Is the AD 2 "can" result a bug?</summary><div>No: defects are pin-prick sized (median 5.6×10<sup>−5</sup> of the image) and vanish at 256 px; the AD 2 paper reports the same for PatchCore. We verified weights, reimplemented independently, and checked per-lighting scores.</div></details>
+<details><summary>What did you not do?</summary><div>See Part F: B4 (second model), B5 (object crop), the discolouration negative control, other categories, and real (non-synthetic) lighting with enough calibration photos.</div></details>
+<details><summary>Why only three MVTec AD categories?</summary><div>Time and disk: the three cover a rigid object (bottle), a natural object with pose variation (hazelnut), and a texture (leather). More categories would tighten the estimates but are the same experiment.</div></details>
+<h2>G5. Reproduce and file map</h2>
+<pre>uv sync --extra dev
+uv run pytest                                   # 12 tests: conformal, shift generator, B2 alignment
+uv run python scripts/qr4_ncurve.py             # QR4 + QR3  -> results/qr4/
+uv run python scripts/qr4_analyze.py            #              -> results/qr4/qr4_summary.md
+uv run python scripts/qr1_drift.py              # QR1        -> results/qr1/
+uv run python scripts/qr5_latency.py            # QR5        -> results/qr5/
+uv run python scripts/qr6_natural.py            # QR6 (real AD2 lighting) -> results/qr6/
+uv run python scripts/run_extra.py b1           # B1         -> results/b1/
+uv run python scripts/export_banks.py           # demo banks + calibration photos
+uv run uvicorn main:app --app-dir app --port 8021
+uv run python scripts/build_learning_report.py  # this report</pre>
+<table><tr><th>path</th><th>what</th></tr>
+<tr><td><code>src/lightshift/patchcore.py</code></td><td>extractor, greedy coreset, image scoring</td></tr>
+<tr><td><code>src/lightshift/b2.py</code></td><td>moment pooling and alignment (mean, mean+std)</td></tr>
+<tr><td><code>src/lightshift/b3.py</code></td><td>conformal rank, threshold, Beta band</td></tr>
+<tr><td><code>src/lightshift/shift.py</code></td><td>the five lighting generators</td></tr>
+<tr><td><code>scripts/pilot_shift_eval.py</code></td><td>the first pilot (kept for the record; oracle B2a, buggy B2b)</td></tr>
+<tr><td><code>docs/hypotheses.md</code></td><td>registered questions and dated amendments</td></tr>
+<tr><td><code>receipts/</code></td><td>reproduction-gate fits</td></tr>
+<tr><td><code>app/</code></td><td>the demo (FastAPI + one HTML page)</td></tr></table>
+</section>

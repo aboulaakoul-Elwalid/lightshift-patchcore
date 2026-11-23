@@ -1,0 +1,12 @@
+<section id="synthesis">
+<h2>D10. What the evidence says, in one page</h2>
+<ol>
+<li><b>The failure is real and mostly a decision failure.</b> Lighting moves good scores above the original threshold: 40% false alarms on average across our synthetic shifts, up to 100%; 80–100% under real over/under-exposure in AD 2 vial. Ranking degrades much less on synthetic shifts, but on real exposure changes it degrades too (vial AUROC 0.95 → 0.72).</li>
+<li><b>B3 is the indispensable repair.</b> k ≈ 10 normal photos of the new lighting bring false alarms back to about α = 10% on synthetic shifts, with the realised rate following the theory (n+1−k)/(n+1), and the same law appears on real AD 2 lighting. It requires n ≥ 9 photos for α = 0.1 and an unchanged lighting afterwards.</li>
+<li><b>B2 is a useful but secondary booster on synthetic shifts, and unproven on real ones.</b> It does not change the false-alarm rate; it raises detection at the same rate where the scores are damaged (brightness, shading: TPR 87–94% → 95–100% at k = 10). B2a needs very few photos (k ≈ 5); the corrected B2b needs ≥ 25. On real AD 2 lighting with 3–4 photos it did not help.</li>
+<li><b>B1 (augmenting the bank) is stronger than B2 for lighting you anticipated and useless for lighting you did not.</b> No guarantee either way.</li>
+<li><b>The repair is free at serving time</b> (≈ 1× vanilla latency); the cost is the operational step "take ~10 photos after a lamp change".</li>
+<li><b>Feature drift predicts the damage</b> (ρ ≈ 0.8–0.9 with the false-alarm rate), which suggests an automatic "recalibrate now" alarm.</li>
+</ol>
+<div class="claim"><b>One-sentence answer to the project's question.</b> A memory-bank detector keeps its false-alarm promise when the lights change <i>if</i> you recalibrate its threshold on about ten normal photos of the new lighting (B3); realigning its features (B2) helps detection a little, only on some shifts, and was not shown to help on real lighting.</div>
+</section>

@@ -1,0 +1,31 @@
+<section id="metrics">
+<h2>A2. Metrics, computed by hand</h2>
+<p>A detector produces a score s(x) for each image x (higher = more anomalous). A <b>threshold</b> τ turns scores into decisions: flag x if s(x) &gt; τ.</p>
+<h3>The four outcomes</h3>
+<table><tr><th></th><th>flagged (s &gt; τ)</th><th>not flagged (s ≤ τ)</th></tr>
+<tr><td><b>defective image</b></td><td>TP (true positive)</td><td>FN (miss)</td></tr>
+<tr><td><b>good image</b></td><td>FP (false alarm)</td><td>TN</td></tr></table>
+<div class="eq"><b>TPR</b> = recall = TP / (TP + FN)        share of defects caught
+<b>FPR</b>             = FP / (FP + TN)        share of good parts wrongly flagged
+<b>precision</b>       = TP / (TP + FP)
+<b>F1</b>              = 2 · precision · recall / (precision + recall)</div>
+<div class="worked"><h4>Worked example</h4>
+<p>20 good, 10 defective. At τ: 3 good flagged, 8 defective flagged. Then FP=3, TN=17, TP=8, FN=2.
+FPR = 3/20 = 0.15; TPR = 8/10 = 0.80; precision = 8/11 = 0.727; F1 = 2·0.727·0.8/(0.727+0.8) = 0.762.</p></div>
+<h3>AUROC: threshold-free ranking quality</h3>
+<p>Sweep τ from +∞ to −∞; each τ gives a point (FPR, TPR); the curve is the ROC curve; the area under it is <b>AUROC</b>. It has an exact probabilistic meaning:</p>
+<div class="eq"><b>AUROC</b> = P( s(defective) &gt; s(good) ) + ½ · P( s(defective) = s(good) )
+        for one defective and one good image drawn at random.   (Mann–Whitney U statistic / (n<sub>d</sub> · n<sub>g</sub>))</div>
+<div class="worked"><h4>Worked example (do it on paper)</h4>
+<p>Good scores: 0.30, 0.35, 0.50. Defect scores: 0.45, 0.60, 0.80. Compare every defect with every good (9 pairs):
+0.45 beats 0.30, 0.35 (not 0.50) → 2; 0.60 beats all three → 3; 0.80 beats all three → 3. AUROC = (2+3+3)/9 = <b>0.889</b>.</p></div>
+<div class="warning"><b>Why AUROC alone misleads (hypothesis QR2).</b> AUROC only looks at <i>order</i>. Add +0.4 to every score (a global lighting offset) and AUROC does not change at all, yet a fixed threshold now flags every good part (FPR = 100%). In our data this happens: under brightness-5 the AUROC of hazelnut stays 0.91 while the false-alarm rate at the old threshold is 100%.</div>
+<h3>Pixel-level and benchmark metrics (what AD 2 uses)</h3>
+<ul>
+<li><b>Anomaly map</b>: one score per pixel/patch, showing <i>where</i> the anomaly is.</li>
+<li><b>AU-PRO</b>: for each defect region, the fraction of its pixels overlapped by the thresholded map ("per-region overlap"), averaged over regions, integrated over thresholds until the false-positive rate (on good pixels) reaches a limit. AD 2 reports AU-PRO<sub>0.05</sub> (limit 5%). It gives small defects the same weight as large ones.</li>
+<li><b>SegF1</b>: F1 of the binary segmentation at a fixed threshold you supply. This is why the AD 2 submission needs a <b>thresholded</b> folder: the threshold choice is part of your result. It is exactly where B3 matters.</li>
+</ul>
+<div class="exercise"><h4>Exercise A2.1</h4><p>Scores: good = {0.2, 0.4, 0.6}, defect = {0.5, 0.7}. (a) Compute AUROC. (b) At τ = 0.45 compute FPR, TPR, precision, F1. (c) Add 1.0 to all scores: what changes in (a) and (b)?</p>
+<details><summary>Solution</summary><div>(a) pairs: 0.5 beats 0.2, 0.4 (2 of 3); 0.7 beats all (3). 5/6 = 0.833. (b) flagged: 0.6 (good), 0.5, 0.7 (defects). FP=1, TN=2, TP=2, FN=0: FPR=1/3, TPR=1, precision=2/3, F1=0.8. (c) AUROC unchanged (0.833); at τ=0.45 everything is flagged: FPR=1, TPR=1, precision=2/5=0.4, F1=0.571.</div></details></div>
+</section>

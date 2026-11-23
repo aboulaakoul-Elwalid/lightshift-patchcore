@@ -1,0 +1,9 @@
+<section id="qr5">
+<h2>D7. QR5: what does the repair cost at serving time?</h2>
+<p><b>Registered claim.</b> The full serving path (predict + calibrate on n ≤ 50 photos) runs within 2× vanilla latency (p95) with the bank size fixed.</p>
+<p><b>What the serving path adds.</b> Per image: one vector subtraction on a 256 × 1536 matrix (B2a) and one comparison with a stored threshold (B3). One-off, per lighting change: k forward passes to estimate the moments and the calibration scores (k = 10 or 50).</p>
+{{TABLE:qr5}}
+{{CHART:latency}}
+<div class="claim"><b>Verdict: supported.</b> The per-image cost of the serving path is indistinguishable from vanilla (p95 ratio 0.92–1.00× over four back-to-back measurements, well inside 2×): the alignment is negligible next to the backbone and the 256 × 8000 × 1536 nearest-neighbour product. The one-off calibration costs about <b>0.6 s on a GPU</b> (k = 10) and several seconds on a CPU, which is acceptable for "an operator snaps 10 photos after a lamp change".</div>
+<div class="warning"><b>Measurement caveats.</b> bottle bank (8,000 × 1536), 256 px, batch size 1, 200 timed images after 20 warm-ups. The machine was shared with other jobs: the load average was above the core count (6 cores) during the CPU measurement, so the absolute CPU latencies are inflated and noisy (a re-measurement later in the night, load average 4–8, gave 307–327 ms p50 on CPU and 30–31 ms on the GPU). Only the <i>ratio</i> between vanilla and serving, measured back-to-back, is trustworthy. An earlier informal measurement on a quieter machine gave about 84 ms per image on CPU; do not quote either absolute CPU number as a benchmark without re-measuring on an idle machine. The raw load and thread count are stored in <code>results/qr5/qr5.json</code>.</div>
+</section>

@@ -1,63 +1,76 @@
 # LightShift-PatchCore
 
-PatchCore made robust to lighting shift, without retraining. Built on MVTec AD,
-externally validated on MVTec AD 2 (can, vial, sheet_metal).
+PatchCore made trustworthy under lighting change, **without retraining**. Built and measured on MVTec AD
+(bottle, hazelnut, leather) and checked on real lighting changes in MVTec AD 2.
 
-Project of the 14-week sujet "LightShift-PatchCore" (smartex-lab).
-Local checkout lives on the machine SSD (`/mnt/data-ssd/lightshift-patchcore`);
-the dataset lives at `/mnt/data-ssd/mvtec-ad-2`.
+> **Start here if you want to understand it:** the learning report
+> (`results/report/lightshift-learning-report.html`, also served at https://lab.elwalid.dev/lightshift/).
+> It explains the task, the maths of PatchCore, every metric by hand, the two repairs (B2, B3),
+> every experiment with its numbers, what was *not* done, and has exercises with solutions.
+> This README is only the map.
+
+## The result in five lines
+
+1. PatchCore stores normal patch features and scores an image by its worst patch's distance to anything stored.
+2. A lighting change moves every patch, so good parts look abnormal: ranking (AUROC) survives much better than the **fixed threshold**
+   (false-alarm rate ≈ 40% on average over our shifts, up to 100%).
+3. **B3** sets the threshold from k normal photos of the new lighting with a provable false-alarm rate
+   (k-th smallest, k = ⌈(n+1)(1−α)⌉). With k = 10, α = 0.1 the measured false-alarm rate is ≈ 10%, following the theory
+   (n+1−k)/(n+1) closely. It needs n ≥ 9 photos for α = 0.1.
+4. **B2** aligns per-channel feature statistics (mean, optionally std) before matching. It does not move the false-alarm rate;
+   it raises detection at the same false-alarm level exactly where the scores were damaged (brightness, shading).
+5. Real AD 2 lighting (overexposed / underexposed) breaks the fixed threshold too (vial: 80–100% false alarms) and B3 repairs it as predicted;
+   B2's benefit on real lighting is **not demonstrated** (too few calibration photos per condition). See the report, Part D.
+
+Open items are listed honestly in Part F of the report (B4, B5, discolouration negative control, more categories).
 
 ## Quickstart (any machine)
 
 ```bash
-uv sync --extra dev            # or: pip install -e ".[dev]"
-uv run pytest                  # conformal + shift-generator tests
-uv run python scripts/export_banks.py bottle hazelnut leather   # rebuild app banks from MVTec AD train/good
+uv sync --extra dev                 # or: pip install -e ".[dev]"
+uv run pytest                       # 16 tests: conformal, shift generator, B2 alignment, PatchCore core
+uv run python scripts/export_banks.py bottle hazelnut leather   # demo banks + held-out normal photos
 uv run uvicorn main:app --port 8021 --app-dir app               # demo at http://127.0.0.1:8021
-uv run python scripts/make_report.py                            # regenerate the HTML report
-
-Data: set MVTec AD under /mnt/data-ssd/mvtec_ad_full or edit the
-MVT constant in scripts/pilot_shift_eval.py (also import-data scripts).
-
-Ablation / evaluation entry points:
-- scripts/pilot_shift_eval.py   lighting-shift study (reports results/pilot/)
-- scripts/build_submission.py   MAD 2 submission package (float16 tiffs)
-- scripts/make_report.py        self-contained HTML report
-- scripts/fit_baseline.py       anomalib PatchCore fits (optional extra: uv sync --extra fits)
-
-Banks are .pt files and deliberately not committed; export_banks.py rebuilds
-them in a minute from the MVTec AD train split.
+uv run python scripts/build_learning_report.py                  # rebuild the learning report from results/
 ```
 
-## Method
+Data: MVTec AD under `/mnt/data-ssd/mvtec_ad_full`, MVTec AD 2 under `/mnt/data-ssd/mvtec-ad-2`
+(edit the constants at the top of `scripts/qr4_ncurve.py` / `scripts/qr6_natural.py`). Datasets are not in the repo (licence CC BY-NC-SA 4.0).
 
-Given a vanilla PatchCore fitted on reference lighting:
+## Reproduce every experiment
 
-- **B3 — conformal threshold.** Upload n normal images from the target lighting,
-  take the n residuals, threshold = k-th smallest with k = ceil((n+1)(1-alpha)).
-  Realized FPR small-sample behavior ~ Beta(n+1-k, k). No retraining.
-- **B2 — output statistics alignment.** Align per-channel statistics of the
-  patch embedding to the target-lighting distribution (AdaBN-style variants a/b,
-  CORAL-style variant c), estimated from k target normals. Negative control:
-  discoloured defects (per-instance normalization must not erase them).
-- **B1 — memory-bank photometric augmentation** at equal bank-size budget (baseline).
-- **B4 — other model** (EfficientAD / Reverse Distillation), comparator.
-- **Reference implementation** from literature (SPARC / RDA) for comparison.
+| question | command | output |
+|---|---|---|
+| reproduction gate | `scripts/fit_baseline.py` (needs `--extra fits`) | `receipts/` |
+| QR4 + QR3: k photos vs recovery / coverage | `scripts/qr4_ncurve.py`, `scripts/qr4_analyze.py` | `results/qr4/` |
+| QR1: drift vs accuracy drop | `scripts/qr1_drift.py` | `results/qr1/` |
+| QR5: latency | `scripts/qr5_latency.py` | `results/qr5/` |
+| QR6: real AD 2 lighting | `scripts/qr6_natural.py` | `results/qr6/` |
+| B1: augmented bank, equal memory | `scripts/run_extra.py b1` | `results/b1/` |
+| calibration contamination | `scripts/contamination.py` | `results/contamination/` |
+| first pilot (kept for the record) | `scripts/pilot_shift_eval.py` | `results/pilot/` |
+| MVTec AD 2 submission | `scripts/build_submission.py` | `results/mad2_submission/` |
 
 ## Layout
 
 ```
-docs/            hypotheses (QR1-QR6), plan, MVTec AD 2 checklist, sujet notes
-configs/         per-category experiment configs (pinned)
-src/lightshift/  package: data, shift generator, patchcore, b2, b3, metrics, api
-scripts/         runnable entry points (fit, evaluate, calibrate, sweep)
-receipts/        fingerprinted, resumable experiment receipts (JSON)
-tests/           unit tests (equal-memory budgets, conformal coverage, metrics)
-data/            symlinks only - no dataset files
+report/          learning-report source: style.css and parts/*.html (one file per section)
+src/lightshift/  patchcore.py (extractor, greedy coreset, scoring) · b2.py (alignment) · b3.py (conformal) · shift.py · data.py
+scripts/         experiment drivers and report builders (above)
+app/             demo: FastAPI + one HTML page; banks/ and static/calib are generated by export_banks.py
+docs/            hypotheses.md (registered QR1-QR6 + dated amendments), mvtec-ad2-checklist.md, repro-gate.md
+receipts/        reproduction-gate fit receipts
+tests/           16 unit tests
 ```
 
-## Data
+## Honest notes
 
-MVTec AD 2, (c) MVTec Software GmbH, CC BY-NC-SA 4.0. Download via the request
-form at mvtec.com. Private test rows are evaluated on the quota'd public server
-at benchmark.mvtec.com; see docs/mvtec-ad2-checklist.md before any submission.
+* The first pilot (`scripts/pilot_shift_eval.py`) had two flaws, kept in history on purpose and corrected later:
+  its B2a used clean "twin" photos that a factory would not have, and its B2b multiplied by the target std instead of
+  rescaling by σ_ref/σ_target. The corrected, deployable versions live in `src/lightshift/b2.py` and drive all current numbers.
+* Our own PatchCore (`src/lightshift/patchcore.py`) omits the paper's 3×3 neighbourhood pooling and dimension projection.
+  The reproduction gate used anomalib's full implementation. Comparisons are within our pipeline.
+* Test sets are small (20–60 images per condition); read means, not single cells.
+* MVTec data is CC BY-NC-SA 4.0: coursework use only. Private-test images and maps must not be published.
+
+Project of the 14-week sujet "LightShift-PatchCore" (smartex-lab).

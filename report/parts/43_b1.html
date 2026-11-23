@@ -1,0 +1,13 @@
+<section id="b1">
+<h2>D6. B1: is simply augmenting the memory bank enough?</h2>
+<p>A reviewer's first question: "why not just put shifted images in the bank?" B1 builds the bank from the same number of good images but each is randomly lit (one family, severity 1–4, or left clean with probability 1/(F+1)), then takes the same 25% coreset, so the <b>memory budget is equal</b> to vanilla (e.g. 8,000 × 1536 for bottle). Two arms: <b>seen</b> (all five families in the augmentation) and <b>held-out</b> (only gamma, brightness, contrast; colour_temp and shading are never seen).</p>
+{{CHART:b1_bars}}
+{{TABLE:b1}}
+<ul>
+<li><b>Seen shifts: B1 helps a lot, and also improves ranking.</b> False alarms at the source threshold fall from 39.7% to 19.7%, and AUROC rises to 1.000 (under shading 0.973 → 0.998), better than B2a (0.981). Storing the new lighting in the bank is a stronger repair of <i>perception</i> than aligning statistics afterwards.</li>
+<li><b>It does not generalise to shifts it has not seen.</b> In the held-out arm shading stays at 90% false alarms and colour_temp does not improve (28% vs 26%); only the augmented families improve (24% → 14%).</li>
+<li><b>It carries no guarantee.</b> Even with all families seen, the false-alarm rate at the original threshold is 20% (α = 10%). Adding B3 (k = 10) on top gives 9.6%, the same as B3 on a vanilla bank.</li>
+</ul>
+<div class="warning"><b>Fairness caveat in B1's favour.</b> The augmentation uses the <i>same generator, the same seeds and the same severity range</i> as the test shifts, so the "seen" arm is close to an oracle (the shading ramp placement is even identical). A real factory cannot enumerate its future lighting. The held-out arm is the honest estimate of what B1 buys for an unforeseen change.</div>
+<div class="claim"><b>Reading.</b> The three tools answer different questions: <b>B1</b> (train-time) improves scores for lighting you anticipated; <b>B2</b> (deploy-time, a few photos) can improve scores for lighting you did not anticipate, modestly on our synthetic shifts and not shown on real ones; <b>B3</b> (deploy-time, a few photos) fixes the decision with a guarantee regardless of the model. B3 is the one that is indispensable; B1 and B2 are optional accuracy boosters, with B1 needing foresight and B2 needing none.</div>
+</section>

@@ -1,0 +1,28 @@
+<div class="partlabel" id="partB">Part B · The problem</div>
+<section id="shift">
+<h2>B1. Why lighting breaks a memory bank</h2>
+<h3>The five lighting shifts we generate</h3>
+<p>To study robustness in a controlled way we synthesise lighting changes on the MVTec AD test and train images (module <code>src/lightshift/shift.py</code>, severities 1–5, fixed parameters registered before running anything). Pixel values x ∈ [0, 255]; results are clipped to [0, 255].</p>
+<table><tr><th>family</th><th>formula</th><th>parameters by severity 1 → 5</th><th>physical picture</th></tr>
+<tr><td>gamma</td><td>x′ = 255 · (x/255)<sup>γ</sup></td><td>γ = 0.85, 0.75, 0.60, 0.45, 0.30</td><td>non-linear exposure curve; γ &lt; 1 <b>lifts</b> midtones (brighter, washed out)</td></tr>
+<tr><td>brightness</td><td>x′ = x + Δ</td><td>Δ = −12, −22, −35, −48, −62</td><td>dimmer lamp (darker)</td></tr>
+<tr><td>contrast</td><td>x′ = (x − 128) · s + 128</td><td>s = 0.85, 0.72, 0.58, 0.45, 0.35</td><td>flat, hazy illumination</td></tr>
+<tr><td>color_temp</td><td>R′ = g<sub>r</sub>·R, B′ = g<sub>b</sub>·B</td><td>(g<sub>r</sub>, g<sub>b</sub>) = (1.06, .95) … (1.42, .62)</td><td>warmer bulb: more red, less blue</td></tr>
+<tr><td>shading</td><td>x′ = x + A · δ(u), δ a smooth ramp across the image along direction θ</td><td>A = 255 · depth/2 with depth .25 … .85; θ = 0° … 65°</td><td>a lamp from one side; severity 5 adds up to ±108 grey levels on opposite edges</td></tr></table>
+<div class="note">The ramp offset for shading is seeded, so within one condition every image gets the <i>same</i> lighting: a consistent new environment, which is what makes "calibrate on k photos of this lighting" meaningful.</div>
+<h3>The mechanism of failure</h3>
+<p>Let a good image have patch distances d<sub>1…256</sub> to the bank and score s = max d<sub>i</sub>. Under a lighting shift every patch descriptor f is displaced to f′ = f + δ, where δ is a systematic offset (the network encodes brightness and colour in its channels). After L2 normalisation the displacement rotates the vector on the sphere, away from where bank vectors are. Therefore <b>every d<sub>i</sub> increases</b>, including those of perfectly good patches, and so does the max. The bank has no entries for "this patch, under the new lamp".</p>
+<p>Defective images also move, but less: their worst patch was already far from the bank, so there is less room to grow. In the pilot, bottle at brightness-5 goes from mean score 0.39 to 0.53 for good parts but only 0.79 to 0.83 for defective ones. The clouds slide right and the gap between them narrows. Two things can then be true at once:</p>
+<ul><li><b>Ranking (AUROC)</b>: as long as the gap does not close, defects still tend to outscore good parts. AUROC survives, slightly damaged.</li>
+<li><b>Fixed threshold</b>: the old τ now lies <i>below</i> the good cloud. Nearly every good part is flagged. FPR → 100%.</li></ul>
+{{CHART:shift_ramp}}
+<p class="caption">Hazelnut under brightness shift (vanilla PatchCore, our pipeline). Lines: mean image score of good and defective test images vs severity; dashed line: the threshold calibrated on clean data; bars: false-alarm rate at that threshold. The two clouds cross the line while their order is preserved. Data: <code>results/pilot/pilot_summary.csv</code> and <code>hazelnut_pilot.json</code>.</p>
+<div class="warning"><b>Precision about "AUROC survives".</b> It is not universally true. At severity 5, shading drops bottle AUROC to 0.948, brightness drops leather to 0.947 and hazelnut to 0.913 in the pilot. The claim is: ranking degrades <i>much less</i> than the threshold-based decision does. The full numbers per family and severity are in Part D.</div>
+<h3>Why max-of-NN is especially fragile</h3>
+<p>A mean over patches would average the offset; a max picks the single worst patch, and under a systematic shift <i>some</i> patch is always among the unluckiest. The statistics literature calls this an extreme-value effect: the max of many noisy quantities is sensitive to the tail, and a shift moves the whole tail. This is the formal reason the bank cannot "learn the lighting": it only knows what it stored.</p>
+<h3>The two axes of repair</h3>
+<div class="grid">
+<div class="mini"><h3>Decision axis: B3</h3><p class="tiny">Leave the scores alone, move the line. Estimate where the line should be from k normal photos taken under the new lighting, with a distribution-free guarantee on the false-alarm rate. Fixes FPR. Cannot fix poor ranking.</p></div>
+<div class="mini"><h3>Perception axis: B2</h3><p class="tiny">Undo the feature offset before matching so new-lighting patches land near the bank again. Improves the scores themselves (ranking and detection power). Has no guarantee; it is a heuristic that must be tested.</p></div>
+</div>
+</section>

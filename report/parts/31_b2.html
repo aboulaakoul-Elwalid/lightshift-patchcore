@@ -1,0 +1,29 @@
+<section id="b2">
+<h2>C2. B2: aligning feature statistics</h2>
+<h3>Idea</h3>
+<p>B3 moves the line. B2 moves the scores back. Hypothesis: lighting acts on the network's feature channels roughly as a <b>per-channel affine map</b>, f<sub>c</sub>′ ≈ a<sub>c</sub> f<sub>c</sub> + b<sub>c</sub>. If we can estimate (a, b) from a few normal photos of the new lighting, we can invert it before the nearest-neighbour lookup, without touching the bank.</p>
+<h3>The estimates (per channel c = 1…1536)</h3>
+<div class="eq"><b>reference</b> moments (the lighting the bank was built under): μ<sub>r,c</sub>, σ<sub>r,c</sub>² = mean and variance of channel c over all patches of the bank-building images
+<b>target</b> moments (the new lighting): μ<sub>t,c</sub>, σ<sub>t,c</sub>² = the same, over all patches of the k calibration photos
+<b>B2a (mean)</b>      f′ = f − (μ<sub>t</sub> − μ<sub>r</sub>)
+<b>B2b (mean+std)</b>  f′ = (f − μ<sub>t</sub>) / σ<sub>t</sub> · σ<sub>r</sub> + μ<sub>r</sub>
+then L2-normalise f′ and look it up in the (unchanged) bank.</div>
+<p>This is "AdaBN" (Li et al.) in spirit: re-estimate normalisation statistics on the target domain. We do it post hoc on the features rather than inside the network, and we only match first and second moments.</p>
+<div class="worked"><h4>Worked example (two channels)</h4>
+<p>μ<sub>r</sub> = (1.0, 2.0), σ<sub>r</sub> = (0.5, 1.0). New lighting measured on k photos: μ<sub>t</sub> = (1.5, 2.4), σ<sub>t</sub> = (0.5, 2.0). A test patch f = (1.6, 2.5).
+B2a: f′ = f − (0.5, 0.4) = (1.1, 2.1). B2b: channel 1: (1.6−1.5)/0.5·0.5 + 1.0 = 1.1; channel 2: (2.5−2.4)/2.0·1.0 + 2.0 = 2.05. So f′ = (1.1, 2.05). Note how B2b also <i>shrinks</i> channel 2 because its spread doubled under the new lighting, which B2a does not do.</p></div>
+<h3>Why a diagonal (per-channel) model, and what it costs in samples</h3>
+<p>You asked, during the project, whether estimating a high-dimensional correction from ~10 photos is dangerous. It would be if we estimated a full <b>covariance</b> (CORAL-style): 1536 × 1537 / 2 ≈ <b>1.18 million</b> parameters from ~2,560 correlated patches would be badly ill-conditioned. Our model is <b>diagonal</b>: each channel is estimated on its own. A channel mean has standard error ≈ σ<sub>c</sub>/√n<sub>eff</sub>; this does not grow with the number of channels. Here n<sub>eff</sub> is the effective number of independent samples: between k (if all patches of one photo were identical) and 256k (if all were independent). Patches inside one photo are strongly correlated, so n<sub>eff</sub> sits well below 256k, but a mean needs few samples. A <b>variance</b> needs more (its error also depends on the fourth moment): this predicts that B2b needs larger k than B2a. QR4 below confirms it.</p>
+<h3>The bug that made B2b look bad, and what we learned</h3>
+<p>In the first pilot, B2b "failed" in every condition. Reading the code later revealed it multiplied the centred features by <b>σ<sub>t</sub></b> instead of dividing by σ<sub>t</sub> and multiplying by σ<sub>r</sub>. Implemented correctly (<code>src/lightshift/b2.py</code>, with a unit test that checks the aligned features reproduce the reference moments), B2b becomes the <i>best</i> variant for ranking in several conditions. Lesson: a surprising negative result is a reason to read your code first; "it is a finding" was premature.</p>
+<h3>The pilot's second weakness: an oracle</h3>
+<p>The pilot estimated the mean shift as μ(shifted photos) − μ(<b>the same photos, clean</b>): it required the clean twin of every target photo. A factory has no clean twin of a photo taken under tonight's lamp. The deployable estimate compares the target photos against the bank's own statistics. QR4 below compares the two directly ("oracle_a" vs "b2a").</p>
+<h3>Where B2 can fail (honest list)</h3>
+<ul>
+<li><b>It can erase real defects.</b> Alignment is applied to every patch, defective or not. If a defect changes per-channel statistics, and the calibration photos were not purely normal, part of the defect signal is subtracted. The sujet calls for a <i>negative control</i> (discoloured defects must remain detectable at ≥ 80% of reference). <b>We did not run it.</b> It remains open, and it is the first thing a reviewer should ask.</li>
+<li>The per-channel affine model is an assumption. Spatially varying lighting (shading) violates it: one offset per channel cannot undo a gradient across the image. Surprisingly, shading is where B2 helps <i>most</i> in our deployable experiment (QR4): the average offset is still the dominant effect. The pilot's oracle estimate wrongly suggested the opposite; another reason to measure the deployable version.</li>
+<li>B2 has no coverage guarantee; the combined pipeline's false-alarm rate is only as good as B3's recalibration <i>on the aligned scores</i> (which is why the app recalibrates after aligning).</li>
+</ul>
+<div class="exercise"><h4>Exercise C2.1</h4><div>Reference moments (μ<sub>r</sub>, σ<sub>r</sub>) = (3, 2). Target photos give (μ<sub>t</sub>, σ<sub>t</sub>) = (5, 4) for this channel. Compute B2a and B2b outputs for f = 9, and decide which one inverts "f′ = 2f − 1" (the true shift: a = 2, b = −1... check: does it map (3,2) to (5,4)?).
+<details><summary>Solution</summary><div>True shift f′ = 2f − 1 maps mean 3 → 5 and std 2 → 4 ✓. A patch measured at 9 under the new lighting came from f = (9+1)/2 = 5 under the reference. B2a: 9 − (5−3) = 7 (wrong: only fixes the mean). B2b: (9−5)/4·2 + 3 = 5 ✓. When the shift really is affine with a ≠ 1, B2b is the exact inverse; B2a is exact only when a = 1.</div></details></div></div>
+</section>

@@ -1,0 +1,33 @@
+<header>
+<div class="kicker">LightShift-PatchCore · learning report · written for study with pen and paper</div>
+<h1>Can a memory-bank detector keep its promise <em>when the lights change?</em></h1>
+<p class="abstract">One document, from zero. It explains the task, the maths of PatchCore, how every metric is computed, why lighting
+breaks the detector, the two repairs we built (a <b>conformal threshold</b> and a <b>feature-statistics alignment</b>), every experiment we ran
+with its numbers, what we did not do, and the MVTec AD&nbsp;2 submission. Worked examples and exercises with solutions are inside.
+Every number comes from a file in the repository; where a claim is weaker than it sounds, we say so.</p>
+<div class="mental"><b>The whole project in four lines.</b>
+1) PatchCore stores what normal patches look like and scores a new image by how far its worst patch is from anything stored.
+2) A lighting change moves <i>every</i> patch, so normal parts start to look abnormal: the <b>ranking</b> of images mostly survives but the <b>fixed threshold</b> does not.
+3) B3 fixes the threshold from k normal photos of the new lighting, with a provable false-alarm rate; B2 repairs the features before matching.
+4) Measured result: the false-alarm rate drops from about {{V:fpr_src_all}} to about {{V:fpr_b3_k10}} with k&nbsp;=&nbsp;10 photos, and B2 adds detection power on top.</div>
+<div class="contract-row"><span class="tag">Course project · "LightShift-PatchCore" sujet</span><span class="tag">Data: MVTec AD (bottle, hazelnut, leather) + MVTec AD 2</span>
+<span class="tag">No training: frozen WideResNet-50</span><span class="tag">Code: github.com/aboulaakoul-Elwalid/lightshift-patchcore</span></div>
+<div class="note"><b>Status, 2026-11-23.</b> Verified: 16 unit tests pass; MVTec's official checker accepts the AD 2 submission folder; every number in Part D is generated from a CSV/JSON in <code>results/</code> by <code>scripts/build_learning_report.py</code>. <b>Open</b> (Part F): second model (B4), object crop (B5), the discolouration negative control, and an idle-machine CPU latency measurement. The MVTec upload itself is a manual step.</div>
+<div class="toc">
+<a href="#task"><span>Part A</span>The task, from zero</a>
+<a href="#metrics"><span>Part A</span>Metrics by hand</a>
+<a href="#features"><span>Part A</span>Deep features: the shapes</a>
+<a href="#patchcore"><span>Part A</span>PatchCore, step by step</a>
+<a href="#shift"><span>Part B</span>Why lighting breaks it</a>
+<a href="#b3"><span>Part C</span>B3: conformal threshold</a>
+<a href="#b2"><span>Part C</span>B2: feature alignment</a>
+<a href="#results"><span>Part D</span>Every experiment</a>
+<a href="#submission"><span>Part E</span>MVTec AD 2 submission</a>
+<a href="#ledger"><span>Part F</span>Ledger and honesty</a>
+<a href="#study"><span>Part G</span>Exercises, formulas, viva</a>
+<a href="#appendix"><span>Appendix</span>Earlier lessons (clamping)</a>
+</div>
+<div class="note"><b>How to study this.</b> Read Part A with a pencil: every formula has a tiny worked example you can redo by hand.
+Part C is the heart of the contribution. Part D is the evidence; read the "what this does <i>not</i> show" box under each result.
+Part G has exercises with hidden solutions: do them on paper first.</div>
+</header>

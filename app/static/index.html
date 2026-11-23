@@ -44,103 +44,144 @@ padding:7px 10px;color:var(--muted);border-top:1px solid var(--line)}
 .ex{padding:7px 14px;border-radius:10px;border:1px solid var(--line);background:#fffdf8;color:var(--ink);font-size:13px}
 .ex:hover{border-color:var(--accent)}
 label{font-family:var(--sans);font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+body{counter-reset:s}a{color:var(--teal)}
+.step{position:relative;padding-left:34px}
+.step:before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;
+background:var(--accent);color:#fff;font:600 13px var(--sans);display:flex;align-items:center;justify-content:center}
+h2{font-size:18px;margin:0 0 4px}
+.hint{color:var(--muted);font-size:13.5px;line-height:1.55;font-family:var(--sans)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:14px}
+.pcard{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}
+.pcard h3{margin:0 0 6px;font:600 13px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+.pcard img{width:100%;border-radius:10px;margin-top:8px;display:block}
+.pcard .big{font:600 22px var(--mono)}
+.strip{margin-top:12px;font:12px var(--mono);color:var(--muted)}
+.strip svg{width:100%;height:64px;display:block;background:#fffdf8;border:1px solid var(--line);border-radius:10px}
+.kv{font:12.5px var(--mono);color:var(--muted);line-height:1.6;margin-top:8px}
+input[type=number]{width:70px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-family:var(--mono)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="eyebrow">LightShift · PatchCore · MVTec AD</div>
   <h1>Anomaly detection <em>under lighting shift</em></h1>
-  <p class="dek">Vanilla PatchCore memory bank (WideResNet-50 features), a live lighting-shift
-  generator, and a split-conformal threshold calibrated on clean normals at α&nbsp;=&nbsp;0.1.</p>
+  <p class="dek">A PatchCore memory bank built under one lighting, then deployed under another. Calibrate it on a
+  handful of normal photos from the new lighting and watch two repairs: <b>B3</b> moves the decision threshold
+  (conformal, α&nbsp;=&nbsp;0.1) and <b>B2</b> re-aligns the features before matching. No retraining.</p>
 
   <div class="card">
-    <div id="samplesRow" class="row" style="margin:0 0 6px">
-      <label style="width:100%">Examples — click to load (category auto-selects)</label>
-      <button class="ex" data-samples="bottle">broken bottle</button>
-      <button class="ex" data-samples="bottle-good" data-cat="bottle">clean bottle</button>
-      <button class="ex" data-samples="hazelnut">defect hazelnut</button>
-      <button class="ex" data-samples="hazelnut-good" data-cat="hazelnut">clean hazelnut</button>
-      <button class="ex" data-samples="leather">cut / glue leather</button>
-      <button class="ex" data-samples="leather-good" data-cat="leather">clean leather</button>
+    <div class="step"><h2>Choose the object and the new lighting</h2>
+      <div class="row">
+        <div><label for="cat">Category</label><br/><select id="cat"><option>bottle</option><option>hazelnut</option><option>leather</option></select></div>
+        <div><label for="fam">Lighting shift</label><br/><select id="fam">
+          <option value="none">clean (no shift)</option><option>gamma</option><option>brightness</option><option>contrast</option>
+          <option>color_temp</option><option>shading</option></select></div>
+        <div><label for="sev">Severity <span id="sevv">3</span></label><br/><input id="sev" type="range" min="1" max="5" value="3" disabled/></div>
+      </div>
+      <p class="hint">Try <b>hazelnut · brightness · 5</b> or <b>bottle · shading · 4</b>: the stock threshold flags almost every good part.</p>
     </div>
-    <div class="drop" id="drop">Drop an image here, or click to choose a file</div>
-    <input type="file" id="file" accept="image/*" hidden/>
-    <div class="row">
-      <div>
-        <label for="cat">Category</label><br/>
-        <select id="cat"><option>bottle</option><option>hazelnut</option><option>leather</option></select>
-      </div>
-      <div>
-        <label for="fam">Lighting shift</label><br/>
-        <select id="fam">
-          <option value="none">clean (no shift)</option>
-          <option>gamma</option><option>brightness</option><option>contrast</option>
-          <option>color_temp</option><option>shading</option>
-        </select>
-      </div>
-      <div>
-        <label for="sev">Severity</label><br/>
-        <input id="sev" type="range" min="1" max="5" value="3" disabled/>
-      </div>
-      <button id="go" disabled>Score image</button>
-    </div>
-    <div class="verdict" id="verdict"></div>
-    <div class="metric" id="metrics"></div>
-    <div class="results" id="imgs"></div>
   </div>
 
-  <p class="note">The threshold comes from the conformal calibration on defect-free images only:
-  k&nbsp;=&nbsp;⌈(n+1)(1−α)⌉-th smallest calibration score. Under a lighting shift the bank matches
-  the reference lighting, so shifted normal parts drift over threshold (false positives) — that is
-  exactly the failure mode the project's B2 feature-stat alignment is designed to repair. Backend:
-  FastAPI, CPU inference, banks exported from the reproduction-gate fits.</p>
-  <div class="foot">LIGHTSHIFT-PATCHCORE / DEMO 0.2 · MVTec AD</div>
+  <div class="card">
+    <div class="step"><h2>Calibrate on k normal photos of that lighting</h2>
+      <div class="row">
+        <div><label for="k">k photos (2–12)</label><br/><input id="k" type="number" min="2" max="12" value="10"/></div>
+        <button id="cal">Calibrate with built-in normals</button>
+        <span class="hint">uses held-out good photos (never in the bank) with the lighting above applied.</span>
+      </div>
+      <div id="calout"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step"><h2>Score an image under that lighting</h2>
+      <div id="samplesRow" class="row" style="margin:0 0 6px">
+        <label style="width:100%">Examples — click to load (category auto-selects)</label>
+        <button class="ex" data-samples="bottle-good" data-cat="bottle">clean bottle</button>
+        <button class="ex" data-samples="bottle" data-cat="bottle">broken bottle</button>
+        <button class="ex" data-samples="hazelnut-good" data-cat="hazelnut">clean hazelnut</button>
+        <button class="ex" data-samples="hazelnut" data-cat="hazelnut">defect hazelnut</button>
+        <button class="ex" data-samples="leather-good" data-cat="leather">clean leather</button>
+        <button class="ex" data-samples="leather" data-cat="leather">cut leather</button>
+      </div>
+      <div class="drop" id="drop">Drop an image here, or click to choose a file</div>
+      <input type="file" id="file" accept="image/*" hidden/>
+      <div class="row"><button id="go" disabled>Score image</button><span class="hint" id="gohint"></span></div>
+      <div id="pipes"></div>
+    </div>
+  </div>
+
+  <p class="note"><b>Reading it.</b> <i>Vanilla</i> uses the threshold fixed on the original lighting. <i>B3</i> keeps the
+  model but sets the threshold to the ⌈(n+1)(1−α)⌉-th smallest of the k calibration scores: at most ≈10% of good parts
+  should then raise a false alarm. <i>B2+B3</i> first subtracts the per-channel feature offset (new lighting vs original), then
+  recomputes the threshold on the aligned scores. A good part wrongly flagged is a false alarm; a defect that scores below the
+  threshold is a miss. Raising the threshold (e.g. the maximum) trades false alarms for misses. Full explanation and
+  numbers: <a href="https://lab.elwalid.dev/lightshift/">the learning report</a>. Backend: FastAPI, CPU inference.</p>
+  <div class="foot">LIGHTSHIFT-PATCHCORE / DEMO 0.3 · MVTec AD</div>
 </div>
 <script>
-const drop=document.getElementById('drop'),file=document.getElementById('file'),
-go=document.getElementById('go'),fam=document.getElementById('fam'),sev=document.getElementById('sev'),
-verdict=document.getElementById('verdict'),metrics=document.getElementById('metrics'),
-imgs=document.getElementById('imgs');
-let f=null;
-const sampleMap={
-  'bottle':'/static/samples/bottle_large_broken.png',
-  'bottle-good':'/static/samples/bottle_good.png',
-  'hazelnut':'/static/samples/hazelnut_print.png',
-  'hazelnut-good':'/static/samples/hazelnut_good.png',
-  'leather':'/static/samples/leather_cut.png',
-  'leather-good':'/static/samples/leather_good.png'};
+const $=id=>document.getElementById(id);
+const drop=$('drop'),file=$('file'),go=$('go'),fam=$('fam'),sev=$('sev'),pipes=$('pipes'),calout=$('calout');
+let f=null,calib=null;
+const sampleMap={'bottle':'/static/samples/bottle_large_broken.png','bottle-good':'/static/samples/bottle_good.png',
+ 'hazelnut':'/static/samples/hazelnut_print.png','hazelnut-good':'/static/samples/hazelnut_good.png',
+ 'leather':'/static/samples/leather_cut.png','leather-good':'/static/samples/leather_good.png'};
+function invalidate(){calib=null;calout.innerHTML='';pipes.innerHTML='';$('gohint').textContent=''}
+['cat','fam','sev','k'].forEach(i=>$(i).addEventListener('change',invalidate));
+sev.oninput=()=>$('sevv').textContent=sev.value;
+fam.onchange=()=>{sev.disabled=fam.value==='none';invalidate()};
 document.querySelectorAll('.ex').forEach(b=>b.onclick=async()=>{
-  try{
-    const r=await fetch(sampleMap[b.dataset.samples]);const bl=await r.blob();
-    f=new File([bl],bl.filename||'sample.png',{type:'image/png'});
-    if(b.dataset.cat)document.getElementById('cat').value=b.dataset.cat;
-    fam.value='none';sev.disabled=true;drop.textContent=(b.textContent);
-    go.disabled=false;
-  }catch(e){drop.textContent='could not load sample'}
-});
+  try{const r=await fetch(sampleMap[b.dataset.samples]);const bl=await r.blob();
+    f=new File([bl],'sample.png',{type:'image/png'});
+    if(b.dataset.cat&&$('cat').value!==b.dataset.cat){$('cat').value=b.dataset.cat;invalidate()}
+    drop.textContent=b.textContent;go.disabled=false;}catch(e){drop.textContent='could not load sample'}});
 drop.onclick=()=>file.click();
 drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
 drop.ondragleave=()=>drop.classList.remove('over');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');f=e.dataTransfer.files[0];ready()};
 file.onchange=()=>{f=file.files[0];ready()};
-fam.onchange=()=>sev.disabled=fam.value==='none';
 function ready(){go.disabled=!f;drop.textContent=f?f.name:'Drop an image here, or click to choose a file'}
+function strip(c){
+  const all=[...c.scores_unaligned,...c.scores_aligned,c.threshold_source,c.threshold_b3,c.threshold_b2b3];
+  const lo=Math.min(...all)*0.95,hi=Math.max(...all)*1.05,W=600,x=v=>10+(W-20)*(v-lo)/(hi-lo);
+  const dots=(a,y,col)=>a.map(v=>`<circle cx="${x(v)}" cy="${y}" r="4" fill="${col}"/>`).join('');
+  const line=(v,col,l,y)=>`<line x1="${x(v)}" x2="${x(v)}" y1="4" y2="60" stroke="${col}" stroke-width="2" stroke-dasharray="4 3"/>
+    <text x="${x(v)+3}" y="${y}" font-size="10" fill="${col}">${l}</text>`;
+  return `<svg viewBox="0 0 ${W} 64" preserveAspectRatio="none">${dots(c.scores_unaligned,22,'#9d3f29')}${dots(c.scores_aligned,44,'#116a66')}
+   ${line(c.threshold_source,'#61584c','source',12)}${line(c.threshold_b3,'#9d3f29','B3',60)}${line(c.threshold_b2b3,'#116a66','B2+B3',36)}</svg>`;
+}
+$('cal').onclick=async()=>{
+  $('cal').disabled=true;$('cal').textContent='Calibrating…';
+  const fd=new FormData();fd.append('category',$('cat').value);fd.append('family',fam.value);fd.append('severity',sev.value);
+  fd.append('k',$('k').value);fd.append('use_builtin','true');
+  try{const j=await (await fetch('/api/calibrate',{method:'POST',body:fd})).json();
+    if(j.error){calout.innerHTML='<p class="hint">'+j.error+'</p>';}else{calib=j;
+      calout.innerHTML=`<div class="strip">red dots: the ${j.n} calibration scores before alignment · green dots: after B2 alignment · dashed: thresholds<br/>${strip(j)}</div>
+       <div class="kv">n=${j.n}, α=${j.alpha}, rank k=⌈(n+1)(1−α)⌉=${j.rank_k} (k-th smallest) · feature drift (mean |Δμ|/σ) = ${j.drift.toFixed(3)}<br/>
+       source threshold ${j.threshold_source.toFixed(3)} → B3 ${j.threshold_b3.toFixed(3)} → B2+B3 ${j.threshold_b2b3.toFixed(3)}</div>`;
+      $('gohint').textContent='calibrated: results below compare all three pipelines';}
+  }catch(e){calout.innerHTML='<p class="hint">request failed: '+e+'</p>'}
+  $('cal').disabled=false;$('cal').textContent='Calibrate with built-in normals';
+};
+function card(t,r,sub){
+  const bad=r.verdict==='anomaly';
+  return `<div class="pcard"><h3>${t}</h3><span class="pill ${bad?'bad':'ok'}">${r.verdict.toUpperCase()}</span>
+   <div class="big">${r.score.toFixed(3)}</div><div class="kv">threshold ${r.threshold.toFixed(3)} · ×${r.margin.toFixed(2)}<br/>${sub}</div>
+   ${r.overlay_png?`<img src="${r.overlay_png}"/>`:''}</div>`;
+}
 go.onclick=async()=>{
   go.disabled=true;go.textContent='Scoring…';
-  const fd=new FormData();fd.append('file',f);fd.append('category',document.getElementById('cat').value);
-  fd.append('family',fam.value);fd.append('severity',sev.value);
-  try{
-    const r=await fetch('/api/predict',{method:'POST',body:fd});const j=await r.json();
-    if(j.error){verdict.innerHTML='';metrics.textContent=j.error}else{
-      const bad=j.verdict==='anomaly';
-      verdict.innerHTML=`<span class="pill ${bad?'bad':'ok'}">${j.verdict.toUpperCase()}</span>
-        <span class="metric">score / threshold = ${j.score.toFixed(2)} / ${j.threshold.toFixed(2)}
-        (×${j.margin.toFixed(2)})</span>`;
-      metrics.textContent=`category=${document.getElementById('cat').value} shift=${fam.value}${fam.value!=='none'?'·s'+sev.value:''}`;
-      imgs.innerHTML=[['overlay · heatmap on image',j.overlay_png],['input (after shift)',j.shifted_png],['pure anomaly heat',j.heat_png]]
-        .map(([c,d])=>`<figure><img src="${d}"/><figcaption>${c}</figcaption></figure>`).join('');
-    }
-  }catch(e){metrics.textContent='request failed: '+e}
+  const fd=new FormData();fd.append('file',f);fd.append('category',$('cat').value);fd.append('family',fam.value);
+  fd.append('severity',sev.value);if(calib)fd.append('calib_id',calib.calib_id);
+  try{const j=await (await fetch('/api/predict',{method:'POST',body:fd})).json();
+    if(j.error){pipes.innerHTML='<p class="hint">'+j.error+'</p>'}
+    else if(j.pipelines){const p=j.pipelines;
+      pipes.innerHTML=`<div class="cols">${card('Vanilla · source threshold',p.vanilla,'fixed on the original lighting')}
+        ${card('B3 · recalibrated threshold',p.b3,'same score, new cutoff from '+calib.n+' normals')}
+        ${card('B2 + B3 · aligned + recalibrated',p.b2_b3,'features shifted back, then cutoff from aligned normals')}</div>`}
+    else{pipes.innerHTML=`<div class="cols">${card('Vanilla · source threshold',j,'calibrate (step 2) to compare with B3 and B2+B3')}
+      <div class="pcard"><h3>Input after shift</h3><img src="${j.shifted_png}"/></div></div>`}
+  }catch(e){pipes.innerHTML='<p class="hint">request failed: '+e+'</p>'}
   go.disabled=false;go.textContent='Score image';
 };
 </script>

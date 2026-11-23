@@ -1,0 +1,17 @@
+<div class="partlabel" id="partH">Appendix</div>
+<section id="appendix">
+<h2>Appendix. Earlier lessons we kept (the clamp, and why raw scores matter)</h2>
+<p>Before this project, an earlier PatchCore study (on MVTec AD <code>cable</code> and MVTec LOCO <code>splicing_connectors</code>, July 2026) produced a write-up that shaped three decisions here. Source: <code>smartex-lab-p0/docs/mmselec/MMSELEC_PATCHCORE_RAW_SCORE_WRITEUP_2026-11-12.html</code>. Summary of what carried over:</p>
+<h3>1. Library scores can be clipped, and clipping destroys ranking</h3>
+<p>anomalib normalises raw distances to [0, 1] with <code>clamp((raw − thr)/(max − min) + 0.5, 0, 1)</code>. Everything above the clamp collapses to 1.0 and everything below to 0.0, and ties count as ½ in AUROC. In the earlier study 57% of clean scores were pinned at exactly 0, and the "AUROC = 0.5000" rows seen under rotation were saturation, not a model verdict: 8 of 36 shift rows had exactly 0.5000, the fingerprint of saturation. Re-measured on <b>raw</b> distances the clean baseline was 0.833, not 0.789.</p>
+<div class="eq">AUROC = P(s<sub>defect</sub> &gt; s<sub>good</sub>) + ½ P(s<sub>defect</sub> = s<sub>good</sub>)    →   if every score clamps to 1.0, AUROC = ½ regardless of the model.</div>
+<p><b>Consequence in this project:</b> all our scores are raw squared distances (no clamp), and B2/B3 operate on them.</p>
+<h3>2. Ranking and calibration are different failures</h3>
+<p>In that study, severe warm colour shift made 63% of good parts fail at the source threshold (calibration failure) and also cost about 0.10 AUROC (ranking failure). A threshold fix helps the first and cannot help the second. This is the two-axis framing (B3 and B2) used throughout.</p>
+<h3>3. The conformal formula in the sujet was backwards</h3>
+<p>First spotted in that write-up: "k-th largest" must be the k-th smallest, otherwise n = 50, α = 0.1 flags about 90% of good parts. See C1.</p>
+<h3>Other things that write-up recorded (not re-verified here)</h3>
+<ul><li>Logical defects (wrong count/position) are hard for PatchCore: AUROC 0.75 vs 0.84 for structural defects on splicing_connectors.</li>
+<li>Rotation breaks PatchCore (raw AUROC 0.58–0.59), unlike lighting; this is the pose-variability issue behind the "crop the object first" idea (B5).</li>
+<li>MVTec LOCO is licensed CC BY-NC-SA (non-commercial); the same applies to MVTec AD and AD 2: fine for coursework, a licence question for any commercial demo.</li></ul>
+</section>

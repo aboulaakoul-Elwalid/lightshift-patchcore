@@ -1,0 +1,20 @@
+<div class="partlabel" id="partA">Part A · Foundations</div>
+<section id="task">
+<h2>A1. The task, from zero</h2>
+<h3>Visual inspection and the labelling problem</h3>
+<p>A factory camera photographs parts; a decision must be made for each: <b>OK</b> or <b>defective</b>. Supervised learning would need many labelled
+examples of every defect type, but defects are rare, varied, and often new (a scratch no one has seen). What a factory does have in abundance
+is photos of <i>good</i> parts. <b>Anomaly detection</b> turns this around: learn what "normal" looks like from good parts only, and flag whatever
+does not fit.</p>
+<h3>The datasets</h3>
+<div class="grid three">
+<div class="mini"><h3>MVTec AD</h3><p class="tiny">15 object and texture categories. Per category: a train set of <i>only good</i> images, a test set of good and defective images, and pixel masks for defects. We use <b>bottle, hazelnut, leather</b>. Lighting is controlled and constant: the benchmark every method nearly solves (image AUROC ≈ 1.0).</p></div>
+<div class="mini"><h3>MVTec AD 2</h3><p class="tiny">8 harder categories (can, fabric, fruit_jelly, rice, sheet_metal, vial, wallplugs, walnuts). Defects can be tiny, poses vary, and the test sets contain <b>real lighting changes</b> (file names carry the tag: regular, overexposed, underexposed, shift_1…). Hidden "private" test sets are scored on MVTec's server.</p></div>
+<div class="mini"><h3>The sujet (LightShift)</h3><p class="tiny">Asks: make PatchCore <b>robust to lighting shift without retraining</b>. Proposed tools: B1 augmentation, B2 statistics alignment, B3 conformal threshold, B4 a different model for comparison; evaluate on MVTec AD, validate on AD 2.</p></div>
+</div>
+<h3>Why "lighting" specifically</h3>
+<p>A model that was calibrated in the lab will meet a different lamp, a sunny window, a dirty diffuser. If a system silently starts rejecting good parts
+(false alarms) or accepting bad ones (misses), the operator loses trust in it. The sujet's question is therefore practical:
+<i>how few photos from the new lighting does it take to restore a trustworthy decision?</i></p>
+<div class="claim"><b>Two separate failures,</b> and keeping them separate is the central idea. <b>Perception failure:</b> the scores no longer separate good from bad (AUROC falls). <b>Decision failure:</b> the scores still separate but the cut-off is in the wrong place (false-alarm rate explodes). B2 targets the first, B3 the second.</div>
+</section>

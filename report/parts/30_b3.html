@@ -1,0 +1,34 @@
+<div class="partlabel" id="partC">Part C · The repairs</div>
+<section id="b3">
+<h2>C1. B3: a conformal threshold, derived</h2>
+<p><b>Goal.</b> Choose τ so that a <i>new good part</i> raises a false alarm with probability at most α (say 10%), <b>without assuming anything</b> about the shape of the score distribution. Ingredient: n good photos taken under the deployment lighting, scored by the model: S<sub>1</sub>, …, S<sub>n</sub>.</p>
+<h3>Derivation (split conformal prediction)</h3>
+<p>Let S<sub>n+1</sub> be the score of a new good photo from the same lighting. Assume S<sub>1…n+1</sub> are <b>exchangeable</b> (any ordering is equally likely; i.i.d. is a special case). Then the <b>rank</b> of S<sub>n+1</sub> among all n+1 values is uniform on {1, …, n+1} (if there are no ties).</p>
+<div class="eq">Let S<sub>(k)</sub> be the k-th <b>smallest</b> of S<sub>1…n</sub>.
+S<sub>n+1</sub> ≤ S<sub>(k)</sub>   ⇔   the rank of S<sub>n+1</sub> among n+1 values is ≤ k
+⇒ <b>P( S<sub>n+1</sub> ≤ S<sub>(k)</sub> ) = k / (n+1)</b>
+We want a false alarm probability P( S<sub>n+1</sub> &gt; τ ) ≤ α, so we need k/(n+1) ≥ 1 − α:
+<b>k = ⌈ (n+1)(1 − α) ⌉          τ = S<sub>(k)</sub></b></div>
+<p>That is the whole proof: counting ranks. No Gaussian assumption, no model of the scores.</p>
+<h3>How good is it for finite n? The Beta law</h3>
+<p>The statement above averages over the random calibration set. For one fixed calibration set, the true probability that a normal image scores below τ is F(τ) where F is the score CDF; and F(S<sub>(k)</sub>) is the k-th smallest of n uniforms, which is Beta(k, n+1−k). So the realised false-alarm rate (FPR) is</p>
+<div class="eq">FPR ~ Beta( n+1−k , k )        mean = (n+1−k) / (n+1)   ≤ α</div>
+{{TABLE:kn}}
+<p>Read the first rows: with n&nbsp;&lt;&nbsp;9 and α&nbsp;=&nbsp;0.1 the formula asks for k&nbsp;&gt;&nbsp;n, i.e. a threshold above every calibration score. Our code caps it at the maximum S<sub>(n)</sub>, but then the guarantee is <b>lost</b>: E[FPR] = 1/(n+1) &gt; α. You need at least n ≥ (1−α)/α = <b>9</b> photos for α = 0.1 (19 for α = 0.05).</p>
+{{CHART:conformal}}
+<h3>The "k-th largest" typo in the sujet, and your max-vs-miss objection</h3>
+<p>The sujet writes <i>"the ⌈(n+1)(1−α)⌉-th <b>largest</b> score"</i>. For n = 50, α = 0.1 that is k = 46: the 46th largest is the <b>5th smallest</b>, a threshold near the 10th percentile, so about 90% of good parts would be flagged. The correct reading is the k-th <b>smallest</b> (equivalently the (n+1−k)-th largest). We fixed this in code (<code>src/lightshift/b3.py</code>) and tests (<code>tests/test_b3.py</code>).</p>
+<p>And the point you raised during the project is exactly right and worth stating as a trade-off: <b>a higher threshold buys fewer false alarms at the price of more misses</b>. The most conservative choice, the maximum calibration score, minimises false alarms but lets weak defects pass. The conformal rule is the principled middle: for n = 27, k = 26, which is the <i>second largest</i> score, one rank below the maximum. α is the dial: lowering it moves τ up and the miss rate with it. The guarantee covers only false alarms; <b>it says nothing about misses</b>, which we measure empirically (TPR) in Part D.</p>
+<div class="worked"><h4>Worked example</h4>
+<p>n = 10 calibration scores: 0.31, 0.28, 0.35, 0.30, 0.33, 0.29, 0.32, 0.34, 0.27, 0.36. Sorted: 0.27 0.28 0.29 0.30 0.31 0.32 0.33 0.34 0.35 0.36. α = 0.1 → k = ⌈11 × 0.9⌉ = ⌈9.9⌉ = 10 → τ = 0.36 (the maximum). Expected FPR = 1/11 = 9.1% ≤ 10% ✓. With n = 19: k = ⌈20×0.9⌉ = 18, τ = 2nd largest, E[FPR] = 2/20 = 10%.</p></div>
+<h3>What the guarantee does <i>not</i> cover</h3>
+<ul>
+<li><b>Exchangeability</b>: calibration photos and future photos must come from the same lighting. If the lamp changes <i>after</i> calibration, the guarantee is void. That is why recalibration after a lamp change is a deployment step.</li>
+<li><b>Synthetic photos are not allowed in the calibration set.</b> If you add augmented photos, the scores are no longer exchangeable with real future scores, and the "at most α" statement silently becomes false. (Augmentation is fine for B2's statistics, which carry no guarantee.)</li>
+<li>It is <b>marginal</b>, not conditional: on average over calibration sets. For a particular small set, the realised FPR follows the Beta law above and can be well above α.</li>
+<li>It controls only the false-alarm rate on <b>normal</b> parts. Misses are not controlled.</li>
+<li>It is at image level. For AD 2 pixel-level SegF1 we reuse the threshold as a heuristic, without a guarantee.</li>
+</ul>
+<div class="exercise"><h4>Exercise C1.1</h4><p>(a) n = 30, α = 0.1: find k and E[FPR]. (b) n = 7, α = 0.1: what happens? (c) n = 19, α = 0.05: find k and E[FPR]. (d) Why does making α smaller raise τ and what is the cost?</p>
+<details><summary>Solution</summary><div>(a) k = ⌈31×0.9⌉ = ⌈27.9⌉ = 28; E[FPR] = (31−28)/31 = 3/31 = 0.097. (b) k = ⌈8×0.9⌉ = 8 &gt; n = 7: no valid threshold; cap at the max, E[FPR] = 1/8 = 0.125 &gt; α: no guarantee. (c) k = ⌈20×0.95⌉ = 19 = n → τ = max; E[FPR] = 1/20 = 0.05. (d) smaller α ⇒ larger k ⇒ τ is a higher order statistic; fewer false alarms, but defects with scores in between now fall below τ: more misses.</div></details></div>
+</section>

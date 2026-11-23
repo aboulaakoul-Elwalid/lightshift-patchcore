@@ -1,38 +1,41 @@
-"""Export CPU-inference banks for the demo app from MVTec AD train normals.
+"""Export CPU-inference banks for the demo app (same split/protocol as scripts/qr4_ncurve.py).
 
-Uses the same protocol as scripts/pilot_shift_eval.py (strided 25% coreset,
-seeded 70/15/15 split) so app thresholds == pilot thresholds.
-Writes app/banks/<cat>.pt: {bank: (P,C) float32, threshold: float, category: str}
+Writes app/banks/<cat>.pt = {bank, threshold, ref_mean, ref_var, category, n_cal}
+and ~12 held-out *normal* photos per category to app/static/calib/<cat>/NN.jpg (256 px)
+so the demo can run "calibrate on k normals under the new lighting" without any upload.
+Those photos come from the target pool of the split: never inside the memory bank.
 """
 from __future__ import annotations
 
-import json
 import sys
-from PIL import Image
 from pathlib import Path
 
-import numpy as np
 import torch
+from PIL import Image
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "scripts"))
-from pilot_shift_eval import build_bank, load_split, image_score, features, OUT  # noqa: E402
+import qr4_ncurve as q  # noqa: E402
+from lightshift import b2  # noqa: E402
+from lightshift.b3 import conformal_threshold  # noqa: E402
+from lightshift.patchcore import Extractor, build_bank, image_scores  # noqa: E402
 
 DEST = REPO / "app" / "banks"
+CALIB = REPO / "app" / "static" / "calib"
 DEST.mkdir(parents=True, exist_ok=True)
 
-for cat in sys.argv[1:] or ["bottle", "hazelnut", "leather"]:
-    bank_files, cal_files, tgt_files, _, _ = load_split(cat)
-    bank = build_bank(bank_files).cpu()
-    pjson = OUT / f"{cat}_pilot.json"
-    if pjson.exists():
-        thr = json.loads(pjson.read_text())["threshold_clean"]
-    else:
-        import numpy as np
-        from lightshift.b3 import conformal_threshold
-
-        sys.path.insert(0, str(REPO / "src"))
-        scores = np.array([image_score(features(Image.open(p).convert("RGB")), bank) for p in cal_files])
-        thr = conformal_threshold(scores, 0.1)
-    torch.save({"bank": bank, "threshold": float(thr), "category": cat}, DEST / f"{cat}.pt")
-    print(f"{cat}: bank {tuple(bank.shape)} thr={float(thr):.4f}")
+if __name__ == "__main__":
+    ext = Extractor()
+    for cat in sys.argv[1:] or ["bottle", "hazelnut", "leather"]:
+        bank_f, cal_f, pool_f, _, _ = q.split(cat)
+        raw = q.feats(ext, bank_f)
+        ref = b2.pool([b2.image_moments(x) for x in raw])
+        bank = build_bank(list(raw), 0.25, 0).cpu()
+        thr = conformal_threshold(image_scores(q.feats(ext, cal_f), bank.to(ext.device)), 0.1)
+        torch.save({"bank": bank, "threshold": float(thr), "ref_mean": ref.mean.cpu(), "ref_var": ref.var.cpu(),
+                    "category": cat, "n_cal": len(cal_f)}, DEST / f"{cat}.pt")
+        (CALIB / cat).mkdir(parents=True, exist_ok=True)
+        for i, p in enumerate(pool_f[:12]):
+            Image.open(p).convert("RGB").resize((256, 256)).save(CALIB / cat / f"{i:02d}.jpg", quality=88)
+        print(f"{cat}: bank {tuple(bank.shape)} thr={float(thr):.4f} n_cal={len(cal_f)}", flush=True)
