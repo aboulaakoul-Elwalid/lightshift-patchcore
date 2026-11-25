@@ -441,7 +441,7 @@ TEMPLATE = """<!doctype html>
   ImageNet — a network that learned generic visual features (edges, textures, shapes) from 1.2M natural images. We
   tap its intermediate layers 2 and 3, and lay their responses on a spatial grid: every ~16 pixels of the input
   becomes one feature vector of 1536 numbers describing "what texture lives here". The image becomes a grid of
-  ~32×32 = 1024 local descriptors. This is the entire trick of transfer learning: features learned from totally
+  ~16×16 = 256 local descriptors (layer 2 is average-pooled onto layer 3's 16×16 grid at 256 px input). This is the entire trick of transfer learning: features learned from totally
   different data already describe texture similarity well.</p>
   <div class="figure">
     <h3>How a verdict is made</h3>
@@ -452,8 +452,8 @@ TEMPLATE = """<!doctype html>
   </div>
   <p><strong>Step 2 — the memory bank (train time).</strong> The training images are all OK parts. We extract their
   patch features and push them into a bank. Kept raw, a few hundred images would produce millions of vectors; a
-  <strong>coreset subsampling</strong> step keeps a small, well-spread subset (25% here, chosen evenly over the
-  feature space) so that no region of the feature space is left uncovered. Training = building this bank; there is
+  <strong>coreset subsampling</strong> step keeps a 25% subset (in this pilot a strided subsample; the later
+  <code>src/lightshift/patchcore.py</code> and the anomalib gate use greedy k-center) so that, ideally, no region of the feature space is left uncovered. Training = building this bank; there is
   no gradient descent anywhere in the vanilla method — which is why it is fast, deterministic, and cheap on GPUs.</p>
   <p><strong>Step 3 — scoring (test time).</strong> For each patch of the test image, distance (in the 1536-dim
   space) to its nearest neighbour in the bank. A patch covered by train-like appearance has a tiny distance.
@@ -541,8 +541,8 @@ TEMPLATE = """<!doctype html>
   The AD&nbsp;2 paper (arXiv:2503.21622) reports the same: defects in <code>can</code> are pin-prick-sized (median
   defective area is about 5.6e-5 of the image), and at 256 px input they disappear entirely. Published PatchCore on
   AD&nbsp;2 <code>can</code>: AU-PRO@0.05 of 4.7% on test-private. The lesson fed directly into the design constraints:
-  the MAD&nbsp;2 keeps its native resolution in the submission pipeline and maps are submitted at model output size for
-  the server's bilinear zoom, exactly as the benchmark recommends.</p>
+  the submission pipeline resizes to 256 px (so <code>can</code> stays near chance) and maps are submitted at model output size for
+  the server's bilinear zoom, as the benchmark recommends.</p>
   <div class="grid">
     <div class="metric rose"><span class="label">AD2 can, AU-PRO@0.05 (ours/paper)</span><span class="value">~5%</span>
       <span class="note">Matches the paper: the category is nearly unsolvable at low resolution, not a fitting bug.</span></div>
@@ -550,7 +550,7 @@ TEMPLATE = """<!doctype html>
       <span class="note">Fraction of the 2232x1024 image; vanishes below feature-stride resolution.</span></div>
   </div>
   <p>The two other on-disk AD&nbsp;2 categories were fitted overnight (anomalib PatchCore, 256 px, 25% coreset, receipts
-  under <code>receipts/</code>): <code>vial</code> image AUROC 0.861 / pixel 0.830-analog, <code>sheet_metal</code>
+  under <code>receipts/</code>): <code>vial</code> image AUROC 0.861 / pixel 0.924, <code>sheet_metal</code>
   image AUROC 0.696. Both sit in the "AD&nbsp;2 is simply hard at bottleneck resolution" territory the paper documents
   (half-resolution recipes and native-resolution handling are the paper's answer, not a fitting bug).</p>
 </section>
@@ -583,8 +583,8 @@ TEMPLATE = """<!doctype html>
   <div class="claim"><strong>The plotline:</strong> under lighting shift, AUROC degrades only mildly — but the
   operating-point curse is severe. Vanilla PatchCore flags 65-100% of clean images at severity 3-5 for color-temp and
   shading shifts. B2a (subtract the mean feature gap measured on shift-target normals) pulls the false-alarm rate back
-  toward its nominal 10% with essentially no AUROC cost. B2b, which also rescales per-channel spread, catastrophically
-  breaks calibration — a result we keep because it shows the failure mode, not an accident we smoothed over.</div>
+  toward its nominal 10% with essentially no AUROC cost. B2b in this pilot collapsed, but that was an implementation bug (it multiplied by the shifted std instead of standardising; issue #3).
+  The corrected B2b is in <code>src/lightshift/b2.py</code> and the learning report; treat this pilot B2b as void.</div>
 </section>
 
 <section id="ablations">
@@ -645,10 +645,10 @@ TEMPLATE = """<!doctype html>
     <tbody>
       <tr><td>QR1</td><td>Does per-channel feature-statistic drift <em>predict</em> the accuracy drop (Spearman rho >= 0.6)?</td>
         <td><span class="status parked">partially</span></td>
-        <td>Pilot measured drift + AUROC/FPR per severity on 3 categories; the correlation statistic is computed, severity ladder exists — full per-layer study pending.</td></tr>
+        <td>Pilot measured drift + AUROC/FPR per severity on 3 categories; the pilot computed no correlation; the later study (scripts/qr1_drift.py) gives median Spearman rho 0.57.</td></tr>
       <tr><td>QR2</td><td>AUROC vs F1-at-fixed-threshold disagree under shift (F1 drops >= 15 pt more at severity >= 2)?</td>
-        <td><span class="status future">confirmed</span></td>
-        <td>Pilot: AUROC stays > 0.96 while FPR at the source threshold hits 0.65–1.0 (color_temp/shading s3–5) — the operating point collapses while ranking survives.</td></tr>
+        <td><span class="status parked">not confirmed</span></td>
+        <td>Later computed from F1 (derived from FPR/TPR): median gap 1.4 pts, falsified by its own rule (docs/hypotheses.md). Pilot: AUROC stays > 0.96 while FPR at the source threshold hits 0.65–1.0 (color_temp/shading s3–5) — the operating point collapses while ranking survives.</td></tr>
       <tr><td>QR3</td><td>B3 conformal threshold keeps realized FPR <= alpha + small-sample band, without retraining?</td>
         <td><span class="status parked">partially</span></td>
         <td>Clean-data FPR at B3 threshold sits at the nominal alpha (0.05–0.10, all 3 categories); under severity >= 4 shading the guarantee breaks as exchangeability fails — the n-curve / band test pending.</td></tr>

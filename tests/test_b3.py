@@ -18,10 +18,9 @@ def test_threshold_is_kth_smallest_not_largest():
     assert conformal_threshold(r, 0.1) == 10.0
 
 
-def test_source_clamped_error_reproduces_sujet_bug():
-    # deliberately show why "k-th largest" is broken: rejects ~alpha fraction of
-    # good parts, not 90%. With n=50, alpha=0.1, k=46th smallest keeps 46/50 = 92%... no:
-    # threshold at 46th smallest means above-threshold fraction = 4/50 = 8% <= 10%. OK.
+def test_kth_smallest_rejects_about_alpha_fraction():
+    # the correct rule (k-th smallest) rejects ~alpha of the good calibration scores;
+    # the sujet's "k-th largest" would reject ~90%. n=50, alpha=0.1: k=46, 4/50 = 8% above threshold.
     r = np.arange(1, 51, dtype=float)
     threshold = conformal_threshold(r, 0.1)
     assert (r > threshold).mean() == pytest.approx(0.08, abs=0.02)

@@ -28,6 +28,7 @@
 <li><b>Image level only.</b> We did not evaluate B2/B3 on pixel-level metrics (AU-PRO, SegF1); the AD 2 thresholded masks reuse the image-level threshold as a heuristic.</li>
 <li><b>Own implementation of PatchCore</b> (no 3×3 aggregation, no 9-neighbour re-weighting). The gate used anomalib; the study compares variants inside our pipeline.</li>
 <li><b>B2's defect-erasing risk is only partly tested</b> (contamination check; discolouration control not run).</li>
+<li><b>External review (GitHub issues #1–#4).</b> A reviewer found the pilot B2b bug, an inverted gamma comment and several wrong statements in the old pilot report; all are corrected (C2). Two open observations: the drift statistic has a high clean baseline on texture (leather), so a fixed "3× baseline" alarm is weak there; and B3 alone costs recall under strong directional shading.</li>
 <li><b>One α.</b> All experiments use α = 0.1; the miss rate at other α is not charted.</li>
 </ul>
 <h2>F3. What we would do next (ordered)</h2>

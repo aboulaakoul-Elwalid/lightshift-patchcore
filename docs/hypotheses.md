@@ -122,3 +122,9 @@ B1 gives no coverage guarantee; B3 on top gives 9.6%. The "seen" arm uses the sa
 - QR5 repeated (results/qr5/qr5.json; first run kept as qr5_loaded_run1.json): p95 ratio serving/vanilla 0.97 (CPU), 0.95 (GPU). CPU p50 ~ 307-327 ms under load average 4-8 on 6 cores (threads 10): absolute CPU numbers are not benchmark quality; the earlier informal 84 ms figure was on a quieter machine.
 - Contamination (scripts/contamination.py; results/contamination/): m defective photos among the k calibration photos. k=10 (threshold = max): m=1 drops TPR 91% -> 52%, m=3 -> 29%; B2a gives no protection.
   k=50 (k_rank=46): TPR flat at 91% for m = 0, 2, 4, then 79% at m=5 and 57% at m=8: cliff at m > n-k, as the rank argument predicts. Discolouration negative control still NOT run.
+
+### External issues triaged 2026-11-25
+- #3 (pilot B2b multiplied by std): already fixed in src/lightshift/b2.py (unit-tested); the pilot script is now fixed too and marked superseded. The pilot's "B2b breaks" claim is void.
+- #4: fixed gamma comment (earlier), vial pixel AUROC 0.924, 16x16 grid, coreset wording, native-resolution claim, QR1/QR2 ledger wording in the old make_report.py; B3 clamp is not conservative when alpha < 1/(n+1) (docstring corrected); misnamed test renamed. Not done: committing raw pilot results (results/pilot is now tracked).
+- #1 (B3 alone costs recall under directional shading): consistent with our QR4/contamination findings (B3 fixes FPR, not detection). The suggested next test, B2 before B3 on the same case, is what results/qr4 contains (B2a raises TPR at the same FPR under shading). The mlops branch it cites is not in this repository.
+- #2 (QR1 drift statistic noisy on leather, clean baseline 0.213): plausible, texture images vary more per image; our QR1 run also had its weakest correlation on bottle/leather. A bootstrapped-null z-score is a reasonable follow-up; not implemented.

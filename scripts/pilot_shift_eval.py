@@ -102,7 +102,7 @@ def build_bank(bank_files) -> torch.Tensor:
 
 def b2_stats(tgt_files, fam, sev):
     """Per-channel statistics of clean vs shifted target normal features."""
-    mus_c, mus_s, stds_s = [], [], []
+    mus_c, mus_s, stds_s, stds_c = [], [], [], []
     for p in tgt_files:
         img = Image.open(p).convert("RGB")
         f_c = features(img, norm=False)
@@ -110,10 +110,12 @@ def b2_stats(tgt_files, fam, sev):
         mus_c.append(f_c.mean(0))
         mus_s.append(f_s.mean(0))
         stds_s.append(f_s.std(0))
+        stds_c.append(f_c.std(0))
     mu_c = torch.stack(mus_c).mean(0)
     mu_s = torch.stack(mus_s).mean(0)
     std_s = torch.stack(stds_s).mean(0)
-    return mu_c, mu_s, std_s
+    std_c = torch.stack(stds_c).mean(0)
+    return mu_c, mu_s, std_s, std_c
 
 
 def run_cat(cat: str) -> dict:
@@ -148,9 +150,8 @@ def run_cat(cat: str) -> dict:
     for fam in SHIFT_FAMILIES:
         for sev in range(1, 6):
             key = f"{fam}-s{sev}"
-            mu_c, mu_s, std_s = b2_stats(tgt_files, fam, sev)
+            mu_c, mu_s, std_s, std_c = b2_stats(tgt_files, fam, sev)
             delta_mu = (mu_s - mu_c).to(DEVICE)
-            deltas_std_c = None  # B2b uses target-shifted std only (no clean std needed)
 
             rows: dict[str, list[float]] = {"vanilla": [], "b2a": [], "b2b": []}
             labels: list[int] = []
@@ -160,8 +161,10 @@ def run_cat(cat: str) -> dict:
                 f_raw = features(shifted_image(img, fam, sev), norm=False)
                 rows["vanilla"].append(image_score(F.normalize(f_raw, dim=1), bank))
                 rows["b2a"].append(image_score(F.normalize(f_raw - delta_mu, dim=1), bank))
-                scale = torch.clamp(std_s.to(DEVICE), min=1e-3)
-                rows["b2b"].append(image_score(F.normalize((f_raw - delta_mu) * scale, dim=1), bank))
+                # B2b: standardise with the shifted stats, rescale to the clean stats (issue #3: the
+                # first version multiplied by std_s, which is not an alignment). Superseded by src/lightshift/b2.py.
+                z = (f_raw - mu_s.to(DEVICE)) / torch.clamp(std_s.to(DEVICE), min=1e-3)
+                rows["b2b"].append(image_score(F.normalize(z * std_c.to(DEVICE) + mu_c.to(DEVICE), dim=1), bank))
                 labels.append(0)
 
             for p in test_good:
@@ -172,8 +175,10 @@ def run_cat(cat: str) -> dict:
                 f_raw = features(shifted_image(img, fam, sev), norm=False)
                 rows["vanilla"].append(image_score(F.normalize(f_raw, dim=1), bank))
                 rows["b2a"].append(image_score(F.normalize(f_raw - delta_mu, dim=1), bank))
-                scale = torch.clamp(std_s.to(DEVICE), min=1e-3)
-                rows["b2b"].append(image_score(F.normalize((f_raw - delta_mu) * scale, dim=1), bank))
+                # B2b: standardise with the shifted stats, rescale to the clean stats (issue #3: the
+                # first version multiplied by std_s, which is not an alignment). Superseded by src/lightshift/b2.py.
+                z = (f_raw - mu_s.to(DEVICE)) / torch.clamp(std_s.to(DEVICE), min=1e-3)
+                rows["b2b"].append(image_score(F.normalize(z * std_c.to(DEVICE) + mu_c.to(DEVICE), dim=1), bank))
                 labels.append(1)
 
             labels_a = np.array(labels)

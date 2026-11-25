@@ -5,7 +5,8 @@ at n=50, alpha=0.1. The operative rule is:
 
     k = ceil((n + 1) * (1 - alpha))
     threshold = k-th SMALLEST of the n calibration residuals
-    k fails -> fall back to the maximum (conservative split-conformal edge)
+    k > n (only when alpha < 1/(n+1)) -> clamp to the maximum. That is NOT conservative:
+    the realised FPR is then about 1/(n+1) > alpha, so no alpha-level guarantee exists for such n.
 
 Realized FPR of this construction is distribution-free ~ mean of
 Beta(n + 1 - k, k).
